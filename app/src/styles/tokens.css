@@ -8,6 +8,7 @@
   --space-2: 8px;
   --space-3: 12px;
   --space-4: 20px;
+  --overlay: rgba(0, 0, 0, 0.35);
   --font-ui: -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
   --font-size-base: 14px;
   color-scheme: light;
