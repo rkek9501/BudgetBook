@@ -2,6 +2,7 @@ pub mod error;
 pub mod time;
 pub mod models;
 pub mod db;
+pub mod repo;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
