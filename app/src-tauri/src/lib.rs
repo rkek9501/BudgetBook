@@ -1,3 +1,8 @@
+pub mod error;
+pub mod time;
+pub mod models;
+pub mod db;
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
