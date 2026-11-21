@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import CalendarGrid from './CalendarGrid.vue';
+import RightPanel from './RightPanel.vue';
 import Toolbar from './Toolbar.vue';
 
 defineEmits<{ (e: 'open-settings'): void }>();
@@ -11,7 +12,7 @@ defineEmits<{ (e: 'open-settings'): void }>();
       <Toolbar @open-settings="$emit('open-settings')" />
       <CalendarGrid />
     </section>
-    <aside class="right-panel" />
+    <RightPanel />
   </div>
 </template>
 
@@ -28,11 +29,5 @@ defineEmits<{ (e: 'open-settings'): void }>();
   flex-direction: column;
   min-width: 0;
   min-height: 0;
-}
-.right-panel {
-  min-height: 0;
-  overflow-y: auto;
-  background: var(--surface);
-  border-left: 1px solid var(--border);
 }
 </style>
