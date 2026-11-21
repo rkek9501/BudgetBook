@@ -491,7 +491,7 @@ mod tests {
         let bk = create_backup(&good, &dir).unwrap();
         let name = bk.file_name().unwrap().to_string_lossy().into_owned();
         let db_path = d.path().join("live.db");
-        db::tests::make_corrupt_page_db(&db_path);
+        crate::db::test_util::make_corrupt_page_db(&db_path);
         let original = std::fs::read(&db_path).unwrap();
         // db::open를 거치지 않고 손상된 DB를 연결 슬롯에 넣는다
         let conn = Connection::open(&db_path).unwrap();
@@ -505,6 +505,39 @@ mod tests {
             .collect();
         assert_eq!(copies.len(), 1, "{copies:?}");
         assert_eq!(std::fs::read(dir.join(&copies[0])).unwrap(), original);
+    }
+
+    #[test]
+    fn restore_after_accepting_leftover_wal_keeps_wal_data_in_pre_restore_backup() {
+        let d = tempfile::tempdir().unwrap();
+        let db_path = d.path().join("live.db");
+        let dir = d.path().join("backups");
+        // 백업 원본(지출 1건)
+        let bk_name = {
+            let (_gd, mut good) = test_db();
+            let cat = categories::create(&good, "식비", "#112233").unwrap();
+            add_exp(&mut good, cat.id, "one");
+            let p = create_backup(&good, &dir).unwrap();
+            p.file_name().unwrap().to_string_lossy().into_owned()
+        };
+        // 라이브 DB: 지출 2건이 체크포인트 없이 -wal에만 남은 상태
+        {
+            let mut c = db::open(&db_path).unwrap();
+            c.set_db_config(
+                rusqlite::config::DbConfig::SQLITE_DBCONFIG_NO_CKPT_ON_CLOSE,
+                true,
+            )
+            .unwrap();
+            let cat = categories::create(&c, "식비", "#112233").unwrap();
+            add_exp(&mut c, cat.id, "a");
+            add_exp(&mut c, cat.id, "b");
+        }
+        assert!(d.path().join("live.db-wal").metadata().unwrap().len() > 0);
+        let mut slot = Some(db::open(&db_path).unwrap());
+        assert_eq!(count(slot.as_ref().unwrap()), 2);
+        restore(&mut slot, &db_path, &dir, &bk_name).unwrap();
+        assert_eq!(count(slot.as_ref().unwrap()), 1);
+        assert!(list(&dir).unwrap().iter().any(|b| b.expense_count == 2));
     }
 
     #[test]

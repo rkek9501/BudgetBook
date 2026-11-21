@@ -1,5 +1,6 @@
 use std::path::Path;
 
+use rusqlite::config::DbConfig;
 use rusqlite::{Connection, OpenFlags};
 
 use crate::error::{AppError, AppResult};
@@ -17,8 +18,12 @@ fn unavailable(e: impl std::fmt::Display) -> AppError {
 /// Opens (or creates, only if absent) the database. Never deletes, renames or
 /// overwrites an existing file; any failure is reported as `db_unavailable`.
 /// 기존 파일은 받아들이기 전(스키마 버전·손상 검사)에는 아무것도 쓰지 않는다.
+/// 거부할 때 연결을 닫으며 남은 -wal이 본 파일에 합쳐지지 않도록, 기존 파일은
+/// 받아들이기 전까지 NO_CKPT_ON_CLOSE를 켠다. (읽으려면 SQLite가 -shm을 만들거나
+/// wal-index를 복구할 수 있다. 이것은 허용한다.)
 pub fn open(path: &Path) -> AppResult<Connection> {
-    let existed = path.exists();
+    // 메타데이터 오류는 "있음"으로 보고 검사한다(새 파일로 착각해 검사를 건너뛰지 않는다).
+    let existed = path.try_exists().unwrap_or(true);
     let mut flags = OpenFlags::SQLITE_OPEN_READ_WRITE
         | OpenFlags::SQLITE_OPEN_URI
         | OpenFlags::SQLITE_OPEN_NO_MUTEX;
@@ -26,10 +31,24 @@ pub fn open(path: &Path) -> AppResult<Connection> {
         flags |= OpenFlags::SQLITE_OPEN_CREATE;
     }
     let mut conn = Connection::open_with_flags(path, flags).map_err(unavailable)?;
+    if existed {
+        conn.set_db_config(DbConfig::SQLITE_DBCONFIG_NO_CKPT_ON_CLOSE, true)
+            .map_err(unavailable)?;
+    }
+    accept(&mut conn, existed)?;
+    if existed {
+        // 받아들인 연결은 닫을 때 정상적으로 체크포인트한다(복원이 -wal을 지우기 전에 필요).
+        conn.set_db_config(DbConfig::SQLITE_DBCONFIG_NO_CKPT_ON_CLOSE, false)
+            .map_err(unavailable)?;
+    }
+    Ok(conn)
+}
+
+fn accept(conn: &mut Connection, existed: bool) -> AppResult<()> {
     conn.pragma_update(None, "foreign_keys", "ON")
         .map_err(unavailable)?;
     if existed {
-        check_existing(&conn)?;
+        check_existing(conn)?;
     }
     let mode: String = conn
         .query_row("PRAGMA journal_mode = WAL", [], |r| r.get(0))
@@ -37,11 +56,10 @@ pub fn open(path: &Path) -> AppResult<Connection> {
     if !mode.eq_ignore_ascii_case("wal") {
         return Err(unavailable(format!("could not enable WAL mode ({mode})")));
     }
-    migrate(&mut conn).map_err(|e| match e {
+    migrate(conn).map_err(|e| match e {
         AppError::DbUnavailable(_) => e,
         other => unavailable(other),
-    })?;
-    Ok(conn)
+    })
 }
 
 /// 기존 DB 검사: 새 스키마 거부, quick_check로 손상 검출. 읽기만 한다.
@@ -87,8 +105,8 @@ pub fn migrate(conn: &mut Connection) -> AppResult<()> {
 }
 
 #[cfg(test)]
-pub(crate) mod tests {
-    use super::test_util::test_db;
+mod tests {
+    use super::test_util::{leftover_wal_with, make_corrupt_page_db, test_db};
     use super::*;
     use rusqlite::Connection;
 
@@ -156,37 +174,6 @@ pub(crate) mod tests {
         assert_eq!(std::fs::read(&path).unwrap(), bytes);
     }
 
-    /// 5000행을 쓰고 체크포인트한 뒤 데이터 페이지 하나를 망가뜨린 DB를 만든다.
-    pub(crate) fn make_corrupt_page_db(path: &Path) {
-        {
-            let c = Connection::open(path).unwrap();
-            c.query_row("PRAGMA journal_mode = WAL", [], |r| r.get::<_, String>(0))
-                .unwrap();
-            c.execute_batch(
-                "CREATE TABLE categories(id INTEGER PRIMARY KEY, name TEXT);
-                 CREATE TABLE expenses(id TEXT PRIMARY KEY, date TEXT, description TEXT, amount INTEGER, category_id INTEGER);",
-            )
-            .unwrap();
-            c.pragma_update(None, "user_version", 1).unwrap();
-            let tx = c.unchecked_transaction().unwrap();
-            for i in 0..5000 {
-                tx.execute(
-                    "INSERT INTO expenses VALUES (?1, '2026-11-01', 'some description text here', 1000, 1)",
-                    [format!("id-{i:06}-xxxxxxxxxxxxxxxxxxxxxxxx")],
-                )
-                .unwrap();
-            }
-            tx.commit().unwrap();
-            c.execute_batch("PRAGMA wal_checkpoint(TRUNCATE);").unwrap();
-        }
-        let mut bytes = std::fs::read(path).unwrap();
-        let target = 4096 * 40;
-        for b in &mut bytes[target..target + 4096] {
-            *b = 0xAB;
-        }
-        std::fs::write(path, &bytes).unwrap();
-    }
-
     #[test]
     fn corrupted_page_is_unavailable_and_untouched() {
         let dir = tempfile::tempdir().unwrap();
@@ -196,7 +183,88 @@ pub(crate) mod tests {
         let err = open(&path).unwrap_err();
         assert_eq!(err.code(), "db_unavailable");
         assert_eq!(std::fs::read(&path).unwrap(), before);
-        assert!(!dir.path().join("c.db-wal").exists());
+    }
+
+    fn wal_path(p: &Path) -> std::path::PathBuf {
+        p.with_file_name(format!("{}-wal", p.file_name().unwrap().to_string_lossy()))
+    }
+
+    #[test]
+    fn rejected_newer_schema_keeps_main_and_leftover_wal_bytes() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("w.db");
+        leftover_wal_with(&path, "PRAGMA user_version = 99;");
+        let wal = wal_path(&path);
+        let (main_before, wal_before) =
+            (std::fs::read(&path).unwrap(), std::fs::read(&wal).unwrap());
+        assert!(!wal_before.is_empty());
+        assert_eq!(open(&path).unwrap_err().code(), "db_unavailable");
+        assert_eq!(std::fs::read(&path).unwrap(), main_before);
+        assert_eq!(std::fs::read(&wal).unwrap(), wal_before);
+    }
+
+    #[test]
+    fn rejected_corrupt_page_keeps_main_and_leftover_wal_bytes() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("w.db");
+        make_corrupt_page_db(&path);
+        // 손상과 별개 페이지에 커밋된 프레임이 남은 WAL을 만든다
+        {
+            let c = Connection::open(&path).unwrap();
+            c.set_db_config(
+                rusqlite::config::DbConfig::SQLITE_DBCONFIG_NO_CKPT_ON_CLOSE,
+                true,
+            )
+            .unwrap();
+            c.execute("INSERT INTO categories VALUES (1, 'a')", [])
+                .unwrap();
+        }
+        let wal = wal_path(&path);
+        let (main_before, wal_before) =
+            (std::fs::read(&path).unwrap(), std::fs::read(&wal).unwrap());
+        assert!(!wal_before.is_empty());
+        assert_eq!(open(&path).unwrap_err().code(), "db_unavailable");
+        assert_eq!(std::fs::read(&path).unwrap(), main_before);
+        assert_eq!(std::fs::read(&wal).unwrap(), wal_before);
+    }
+
+    #[test]
+    fn accepted_db_with_leftover_wal_shows_wal_data_and_checkpoints_on_close() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("w.db");
+        {
+            let c = open(&path).unwrap();
+            c.set_db_config(
+                rusqlite::config::DbConfig::SQLITE_DBCONFIG_NO_CKPT_ON_CLOSE,
+                true,
+            )
+            .unwrap();
+            c.execute(
+                "INSERT INTO settings(key, value) VALUES ('theme', 'ocean')",
+                [],
+            )
+            .unwrap();
+        }
+        assert!(std::fs::metadata(wal_path(&path)).unwrap().len() > 0);
+        let c = open(&path).unwrap();
+        let v: String = c
+            .query_row("SELECT value FROM settings WHERE key='theme'", [], |r| {
+                r.get(0)
+            })
+            .unwrap();
+        assert_eq!(v, "ocean");
+        // 받아들인 연결에는 닫을 때 체크포인트가 켜져 있어야 한다
+        drop(c);
+        assert!(
+            !wal_path(&path).exists() || std::fs::metadata(wal_path(&path)).unwrap().len() == 0
+        );
+        let c = open(&path).unwrap();
+        let n: i64 = c
+            .query_row("SELECT count(*) FROM settings WHERE key='theme'", [], |r| {
+                r.get(0)
+            })
+            .unwrap();
+        assert_eq!(n, 1);
     }
 
     #[test]
