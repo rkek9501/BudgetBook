@@ -5,6 +5,7 @@ import { MESSAGES } from '@/domain/messages';
 import type { Expense } from '@/domain/types';
 import { useLedgerStore } from '@/stores/ledger';
 import ConfirmDialog from './ConfirmDialog.vue';
+import { isImeKey, useAmountInput } from '@/composables/useAmountInput';
 import { validateExpenseFields, type FieldErrors } from './expenseValidation';
 
 const props = defineProps<{ expense: Expense }>();
@@ -14,9 +15,11 @@ const category = computed(() => ledger.categories.find((c) => c.id === props.exp
 
 const editing = ref(false);
 const description = ref('');
-const amount = ref('');
 const categoryId = ref<number | null>(null);
 const errors = ref<FieldErrors>({});
+const { amount, onInput: onAmountInput } = useAmountInput(() => {
+  errors.value = { ...errors.value, amount: undefined };
+});
 const busy = ref(false);
 const confirming = ref(false);
 
@@ -39,13 +42,6 @@ async function cancelEdit() {
   errors.value = {};
   await nextTick();
   rowEl.value?.focus();
-}
-
-function onAmountInput(e: Event) {
-  const el = e.target as HTMLInputElement;
-  amount.value = formatAmountInput(el.value);
-  el.value = amount.value;
-  errors.value = { ...errors.value, amount: undefined };
 }
 
 async function save() {
@@ -74,7 +70,7 @@ async function save() {
 }
 
 function onRowKeydown(e: KeyboardEvent) {
-  if (e.target !== rowEl.value || editing.value) return;
+  if (e.target !== rowEl.value || editing.value || isImeKey(e)) return;
   if (e.key === 'Enter') {
     e.preventDefault();
     void startEdit();
@@ -85,6 +81,7 @@ function onRowKeydown(e: KeyboardEvent) {
 }
 
 function onEditKeydown(e: KeyboardEvent) {
+  if (isImeKey(e)) return;
   if (e.key === 'Escape') {
     e.preventDefault();
     e.stopPropagation();

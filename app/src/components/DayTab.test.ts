@@ -94,6 +94,27 @@ describe('DayTab', () => {
     expect(update).not.toHaveBeenCalled();
   });
 
+  it('행 편집 금액 1000.5는 amountInvalidForEdit, 저장 안 함', async () => {
+    const { w, update } = setup();
+    await w.findAll('.expense-row .view')[0].trigger('click');
+    const amount = w.find('.expense-row input[aria-label="금액"]');
+    await amount.setValue('1000.5');
+    expect((amount.element as HTMLInputElement).value).toBe('1000.5');
+    await amount.trigger('keydown', { key: 'Enter' });
+    expect(w.text()).toContain(MESSAGES.amountInvalidForEdit);
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it.each([{ isComposing: true }, { keyCode: 229 }])('행 편집 중 조합 Enter %j는 저장 안 함', async (init) => {
+    const { w, update } = setup();
+    await w.findAll('.expense-row .view')[0].trigger('click');
+    const desc = w.find('.expense-row input[aria-label="내용"]');
+    await desc.setValue('저녁');
+    await desc.trigger('keydown', { key: 'Enter', ...init });
+    expect(update).not.toHaveBeenCalled();
+    expect(w.find('.expense-row input[aria-label="내용"]').exists()).toBe(true);
+  });
+
   it('삭제 버튼 -> 확인창 -> 삭제, 취소하면 삭제 안 함', async () => {
     const { w, del } = setup();
     await w.findAll('button[aria-label="삭제"]')[0].trigger('click');

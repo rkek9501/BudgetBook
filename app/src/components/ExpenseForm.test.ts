@@ -114,4 +114,44 @@ describe('ExpenseForm', () => {
     await w.find('button.add').trigger('click');
     expect(add).toHaveBeenCalledTimes(2);
   });
+
+  it.each([
+    ['12,000원', 12000],
+    [' 12000 ', 12000],
+  ])('금액 입력 %j -> %i로 저장', async (text, value) => {
+    const { w, add, desc, amount } = setup();
+    await desc().setValue('점심');
+    await amount().setValue(text);
+    await w.find('button.add').trigger('click');
+    expect(add).toHaveBeenCalledWith({ date: '2026-11-15', description: '점심', amount: value, categoryId: 1 });
+  });
+
+  it.each([
+    ['1000.5', MESSAGES.amountInvalid],
+    ['-5', MESSAGES.amountNegative],
+    ['100000000000', MESSAGES.amountTooLarge],
+  ])('금액 %j -> 오류 문구, 저장 안 함, 입력 유지', async (text, msg) => {
+    const { w, add, desc, amount } = setup();
+    await desc().setValue('점심');
+    await amount().setValue(text);
+    await w.find('button.add').trigger('click');
+    expect(w.text()).toContain(msg);
+    expect(add).not.toHaveBeenCalled();
+    expect((amount().element as HTMLInputElement).value).toBe(text === '100000000000' ? '100,000,000,000' : text);
+  });
+
+  it.each([
+    ['isComposing', { isComposing: true }],
+    ['keyCode 229', { keyCode: 229 }],
+  ])('한글 조합 중 Enter(%s)는 포커스 이동·제출 안 함', async (_n, init) => {
+    const { add, desc, amount, select } = setup();
+    await desc().setValue('점심');
+    await amount().setValue('1000');
+    (desc().element as HTMLInputElement).focus();
+    await desc().trigger('keydown', { key: 'Enter', ...init });
+    expect(document.activeElement).toBe(desc().element);
+    await amount().trigger('keydown', { key: 'Enter', ...init });
+    await select().trigger('keydown', { key: 'Enter', ...init });
+    expect(add).not.toHaveBeenCalled();
+  });
 });

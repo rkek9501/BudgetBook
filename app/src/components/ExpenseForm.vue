@@ -1,17 +1,19 @@
 <script setup lang="ts">
 import { nextTick, ref, watch } from 'vue';
-import { formatAmountInput } from '@/domain/money';
 import type { DateStr } from '@/domain/types';
 import { useLedgerStore } from '@/stores/ledger';
+import { isImeKey, useAmountInput } from '@/composables/useAmountInput';
 import { validateExpenseFields, type FieldErrors } from './expenseValidation';
 
 const props = defineProps<{ date: DateStr }>();
 const ledger = useLedgerStore();
 
 const description = ref('');
-const amount = ref('');
 const categoryId = ref<number | null>(null);
 const errors = ref<FieldErrors>({});
+const { amount, onInput: onAmountInput } = useAmountInput(() => {
+  errors.value = { ...errors.value, amount: undefined };
+});
 const submitting = ref(false);
 
 const descEl = ref<HTMLInputElement | null>(null);
@@ -33,11 +35,10 @@ function focusDescription() {
 }
 defineExpose({ focusDescription });
 
-function onAmountInput(e: Event) {
-  const el = e.target as HTMLInputElement;
-  amount.value = formatAmountInput(el.value);
-  el.value = amount.value;
-  errors.value = { ...errors.value, amount: undefined };
+function onEnter(e: KeyboardEvent, next: () => void) {
+  if (isImeKey(e)) return;
+  e.preventDefault();
+  next();
 }
 
 async function submit() {
@@ -80,7 +81,7 @@ async function submit() {
         autocomplete="off"
         :aria-invalid="errors.description ? 'true' : undefined"
         @input="errors = { ...errors, description: undefined }"
-        @keydown.enter.prevent="amountEl?.focus()"
+        @keydown.enter="onEnter($event, () => amountEl?.focus())"
       />
     </label>
     <p v-if="errors.description" class="error" role="alert">{{ errors.description }}</p>
@@ -97,7 +98,7 @@ async function submit() {
           :value="amount"
           :aria-invalid="errors.amount ? 'true' : undefined"
           @input="onAmountInput"
-          @keydown.enter.prevent="categoryEl?.focus()"
+          @keydown.enter="onEnter($event, () => categoryEl?.focus())"
         />
       </label>
       <label class="field grow">
@@ -107,7 +108,7 @@ async function submit() {
           v-model.number="categoryId"
           class="input"
           :aria-invalid="errors.category ? 'true' : undefined"
-          @keydown.enter.prevent="submit"
+          @keydown.enter="onEnter($event, submit)"
         >
           <option v-for="c in ledger.sortedCategories" :key="c.id" :value="c.id">{{ c.name }}</option>
         </select>
