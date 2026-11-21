@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onBeforeUnmount, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { formatDateLong } from '@/domain/dates';
 import { formatWon } from '@/domain/money';
 import { MESSAGES } from '@/domain/messages';
@@ -31,7 +31,13 @@ function flush() {
   const id = expandedId.value;
   const text = draft.value;
   const month = memoMonth;
-  const run = () => ledger.saveNote(id, text, month).catch(() => false);
+  const run = async () => {
+    const ok = await ledger.saveNote(id, text, month).catch(() => false);
+    // 실패했고 그사이 새 입력이 없으면 다음 저장 시점에 같은 글을 다시 보낸다.
+    if (!ok && !dirty && expandedId.value === id && memoMonth === month && draft.value === text) {
+      dirty = true;
+    }
+  };
   const next: Promise<unknown> = chain === null ? run() : chain.then(run);
   chain = next;
   void next.then(() => {
@@ -54,8 +60,23 @@ function onDraft(value: string) {
   draft.value = value;
   dirty = true;
   if (timer !== null) clearTimeout(timer);
-  timer = setTimeout(flush, DEBOUNCE_MS);
+  // 빈 메모는 입력 중에 보내지 않는다(메모만 있던 행이 사라지기 때문). 접기·포커스 이탈 때 저장한다.
+  timer = setTimeout(() => {
+    timer = null;
+    if (draft.value.trim() !== '') flush();
+  }, DEBOUNCE_MS);
 }
+
+const rowIds = computed(() => ledger.summary.rows.map((r) => r.category.id));
+watch(rowIds, (ids) => {
+  if (expandedId.value !== null && !ids.includes(expandedId.value)) {
+    if (timer !== null) clearTimeout(timer);
+    timer = null;
+    dirty = false;
+    expandedId.value = null;
+    draft.value = '';
+  }
+});
 
 watch(
   () => ledger.viewMonth,

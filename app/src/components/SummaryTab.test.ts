@@ -146,6 +146,48 @@ describe('SummaryTab', () => {
     expect(order).toEqual(['1', '12']);
   });
 
+  it('메모만 있는 행: 비워도 디바운스로는 저장하지 않고 행 유지, 접으면 빈 저장', async () => {
+    const { ledger, w, save } = setup();
+    ledger.data = { ...ledger.data, expenses: [ledger.data.expenses[1]] };
+    await w.vm.$nextTick();
+    const row = w.findAll('button.category-row')[0];
+    expect(row.text()).toContain('식비');
+    await row.trigger('click');
+    await w.find('textarea').setValue('');
+    vi.advanceTimersByTime(1000);
+    expect(save).not.toHaveBeenCalled();
+    expect(w.find('textarea').exists()).toBe(true);
+    await row.trigger('click');
+    expect(save).toHaveBeenCalledWith(1, '', '2026-11');
+  });
+
+  it('펼친 행이 사라지면 펼침 상태 해제', async () => {
+    const { ledger, w } = setup();
+    ledger.data = { ...ledger.data, expenses: [ledger.data.expenses[1]] };
+    await w.vm.$nextTick();
+    await w.findAll('button.category-row')[0].trigger('click');
+    ledger.data = { ...ledger.data, notes: [] };
+    await w.vm.$nextTick();
+    expect(w.find('textarea').exists()).toBe(false);
+    ledger.data = { ...ledger.data, notes: [{ month: '2026-11', categoryId: 1, note: '다시' }] };
+    await w.vm.$nextTick();
+    expect(w.find('textarea').exists()).toBe(false);
+  });
+
+  it('저장 실패하면 접을 때 같은 글로 다시 저장', async () => {
+    const { w, save } = setup();
+    save.mockResolvedValueOnce(false);
+    const row = w.findAll('button.category-row')[0];
+    await row.trigger('click');
+    await w.find('textarea').setValue('실패글');
+    vi.advanceTimersByTime(500);
+    await flushPromises();
+    expect(save).toHaveBeenCalledTimes(1);
+    await row.trigger('click');
+    expect(save).toHaveBeenCalledTimes(2);
+    expect(save).toHaveBeenLastCalledWith(1, '실패글', '2026-11');
+  });
+
   it('고정 지출 카드 클릭 → open-fixed', async () => {
     const { w } = setup();
     await w.find('button.fixed-card').trigger('click');
