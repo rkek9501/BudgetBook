@@ -2,8 +2,10 @@
 import { ref } from 'vue';
 import Sheet from '@/components/Sheet.vue';
 import CategoriesTab from './settings/CategoriesTab.vue';
+import DataTab from './settings/DataTab.vue';
 import GeneralTab from './settings/GeneralTab.vue';
 
+const props = defineProps<{ initialTab?: 'general' | 'categories' | 'data' }>();
 const emit = defineEmits<{ (e: 'close'): void }>();
 
 type TabId = 'general' | 'categories' | 'data';
@@ -12,7 +14,7 @@ const tabs: { id: TabId; label: string }[] = [
   { id: 'categories', label: '카테고리' },
   { id: 'data', label: '데이터' },
 ];
-const tab = ref<TabId>('general');
+const tab = ref<TabId>(props.initialTab ?? 'general');
 </script>
 
 <template>
@@ -34,7 +36,7 @@ const tab = ref<TabId>('general');
     <div class="tab-body" role="tabpanel">
       <GeneralTab v-if="tab === 'general'" />
       <CategoriesTab v-else-if="tab === 'categories'" />
-      <div v-else class="data-placeholder" />
+      <DataTab v-else />
     </div>
     <div class="footer">
       <button type="button" class="btn" @click="emit('close')">닫기</button>

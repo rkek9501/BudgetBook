@@ -68,7 +68,7 @@ describe('ErrorScreen', () => {
     expect(w.text()).toContain('2026-11-15 10:00');
     expect(w.text()).toContain('지출 12건');
     expect(w.text()).toContain('확인 불가');
-    await w.findAll('[data-testid="backup-item"]')[0].trigger('click');
+    await w.findAll('[data-testid="backup-restore"]')[0].trigger('click');
     expect(w.text()).toContain('이 백업으로 되돌립니다. 지금 데이터는 먼저 보관됩니다.');
     expect(api.restoreBackup).not.toHaveBeenCalled();
     await btn(w, '되돌리기')!.trigger('click');
@@ -85,7 +85,7 @@ describe('ErrorScreen', () => {
     const { w, init } = setup();
     await btn(w, '백업에서 복원')!.trigger('click');
     await flushPromises();
-    await w.find('[data-testid="backup-item"]').trigger('click');
+    await w.find('[data-testid="backup-restore"]').trigger('click');
     await btn(w, '되돌리기')!.trigger('click');
     await flushPromises();
     expect(init).not.toHaveBeenCalled();
