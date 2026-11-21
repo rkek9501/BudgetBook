@@ -31,10 +31,10 @@ Mac용 개인 가계부. Tauri 2 + Vue 3 + TypeScript, 데이터는 SQLite(Rust)
 
 ```bash
 cd app
-npm run tauri dev                                    # 개발 실행 (Windows)
-npm test                                             # Vitest
-(cd src-tauri && cargo test)                         # Rust 테스트
-npm run tauri build -- --target aarch64-apple-darwin # Mac 빌드 (Mac에서만)
+npm run tauri dev                                                  # 개발 실행 (Windows)
+npm test                                                           # Vitest
+(cd src-tauri && cargo test)                                       # Rust 테스트
+npm run tauri build -- --target aarch64-apple-darwin --bundles app # Mac 빌드 (Mac에서만, 순서는 docs/mac-build.md)
 ```
 
 ## 개발 흐름

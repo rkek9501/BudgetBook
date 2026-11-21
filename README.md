@@ -2,7 +2,7 @@
 
 달력에서 바로 지출을 기록하는 macOS용 개인 가계부입니다. 월급일 같은 회계기간 시작일을 기준으로 한 달을 묶어 보여줍니다.
 
-> 상태: 구현 완료, Mac 실기 확인 대기 ([Mac 확인 체크리스트](docs/mac-checklist.md))
+> 상태: 구현 완료, Mac 실기 확인 대기 ([Mac 빌드·설치 가이드](docs/mac-build.md), [Mac 확인 체크리스트](docs/mac-checklist.md))
 
 ## 주요 기능
 
@@ -31,7 +31,8 @@
 |---|---|
 | [설계 문서](docs/superpowers/specs/2026-11-15-mac-budgetbook-design.md) | 구현 기준. 화면 구조, 데이터 설계, 안전장치, 검증 방법 |
 | [기능 명세](docs/functional-spec.md) | 계산 규칙(회계기간·집계·정렬), 메시지, Windows 버전 데이터 형식 |
-| [Mac 확인 체크리스트](docs/mac-checklist.md) | Mac 빌드·실행·확인 순서 |
+| [Mac 빌드·설치 가이드](docs/mac-build.md) | Mac 준비, 코드 옮기기, 빌드, 설치, 업데이트, 문제 해결 |
+| [Mac 확인 체크리스트](docs/mac-checklist.md) | Mac에서 동작 확인 목록 |
 | [기존 화면](docs/asis-screens/) | Windows 버전 화면 캡처 (디자인 개선 전 참고용) |
 
 ## 프로젝트 구조
@@ -50,23 +51,23 @@
 | 용도 | 환경 | 필요한 도구 |
 |---|---|---|
 | 개발 | Windows 11 | Node.js LTS, Rust(rustup), Visual Studio C++ Build Tools, WebView2(Windows 11 기본 포함) |
-| Mac 빌드·확인 | Apple Silicon, macOS 15 이상 | Xcode Command Line Tools, Rust, Node.js LTS |
+| Mac 빌드·확인 | Apple Silicon, macOS 15 이상 | Xcode Command Line Tools, Rust, Node.js 22 이상 LTS |
 
-본인용 앱이라 서명·공증 없이 Mac에서 직접 빌드합니다.
+본인용 앱이라 서명·공증 없이 Mac에서 직접 빌드합니다. Windows에서는 Mac 앱을 빌드할 수 없습니다. 순서는 [Mac 빌드·설치 가이드](docs/mac-build.md)를 보세요.
 
 ## 명령어
 
 ```bash
 cd app
 npm ci
-npm run tauri dev                                    # 개발 실행
-npm test                                             # TypeScript 단위 테스트 (Vitest)
-npm run build                                        # 타입 검사(vue-tsc) + 프런트 빌드
-(cd src-tauri && cargo test --lib)                   # Rust 데이터 계층 테스트
-npm run tauri build -- --target aarch64-apple-darwin # Mac 빌드 (Mac에서 실행)
+npm run tauri dev                                                  # 개발 실행
+npm test                                                           # TypeScript 단위 테스트 (Vitest)
+npm run build                                                      # 타입 검사(vue-tsc) + 프런트 빌드
+(cd src-tauri && cargo test --lib)                                 # Rust 데이터 계층 테스트
+npm run tauri build -- --target aarch64-apple-darwin --bundles app # Mac 빌드 (Mac에서 실행)
 ```
 
 ## 데이터 위치 (Mac)
 
-- DB: `~/Library/Application Support/<번들 ID>/budgetbook.db`
+- DB: `~/Library/Application Support/com.budgetbook.desktop/budgetbook.db` (번들 ID `com.budgetbook.desktop`은 임시 값)
 - 자동 백업: 같은 폴더의 `backups/` (하루 1회, 최근 14개 보관)

@@ -1,29 +1,10 @@
 # Mac 확인 체크리스트
 
-Windows에서 개발한 앱을 Apple Silicon Mac(macOS 15 이상)에서 빌드하고 확인하는 순서입니다.
+Mac에서 빌드·설치한 앱이 제대로 동작하는지 확인하는 목록입니다. 빌드와 설치는 [Mac 빌드·설치 가이드](mac-build.md)를 따릅니다.
 
-## 1. Mac 준비
+서명·공증을 하지 않습니다. 그 Mac에서 직접 빌드한 앱은 Gatekeeper가 막지 않습니다. 다른 곳에서 복사해 온 앱이 막히면 시스템 설정 → 개인정보 보호 및 보안에서 "그래도 열기"를 누릅니다. macOS 15부터는 우클릭 → 열기로 우회할 수 없습니다.
 
-1. Xcode Command Line Tools: `xcode-select --install`
-2. Rust: [rustup](https://rustup.rs)으로 설치 후 `rustup target add aarch64-apple-darwin`
-3. Node.js LTS 설치
-4. 저장소를 Mac으로 가져옵니다.
-
-## 2. 빌드
-
-```bash
-cd app
-npm ci
-npm run tauri build -- --target aarch64-apple-darwin
-```
-
-## 3. 실행 위치
-
-`app/src-tauri/target/aarch64-apple-darwin/release/bundle/macos/가계부.app`
-
-서명·공증을 하지 않습니다. 그 Mac에서 직접 빌드한 앱은 Gatekeeper가 막지 않으므로 그대로 열면 됩니다. 다른 곳에서 복사해 온 앱이 막히면 시스템 설정 → 개인정보 보호 및 보안에서 "그래도 열기"를 누릅니다. macOS 15부터는 우클릭 → 열기로 우회할 수 없습니다.
-
-## 4. 확인 항목
+## 확인 항목
 
 ### 공통 (Windows에서 확인한 것을 Mac에서 다시)
 
