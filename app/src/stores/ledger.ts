@@ -69,8 +69,21 @@ export const useLedgerStore = defineStore('ledger', () => {
     return false;
   }
 
+  // 늦게 도착한 이전 요청이 새 데이터를 덮어쓰지 않도록 요청 번호로 걸러낸다.
+  let reloadSeq = 0;
   async function reload() {
-    data.value = await api.loadPeriod(period.value.start, period.value.end, viewMonth.value);
+    const seq = ++reloadSeq;
+    const result = await api.loadPeriod(period.value.start, period.value.end, viewMonth.value);
+    if (seq === reloadSeq) data.value = result;
+  }
+
+  // 화면 이동처럼 호출자가 오류를 받지 않는 곳에서 쓴다.
+  async function reloadQuietly() {
+    try {
+      await reload();
+    } catch (e) {
+      if (!failDb(e)) toast.value = MESSAGES.reloadFailed;
+    }
   }
 
   async function init() {
@@ -92,14 +105,18 @@ export const useLedgerStore = defineStore('ledger', () => {
       activeTab.value = 'day';
       await reload();
     } catch (e) {
-      if (!failDb(e)) throw e;
+      if (!failDb(e)) dbError.value = (e instanceof Error && e.message) || 'unknown';
     } finally {
       ready.value = true;
     }
   }
 
   async function refreshCategories() {
-    categories.value = (await api.bootstrap()).categories;
+    try {
+      categories.value = (await api.bootstrap()).categories;
+    } catch (e) {
+      if (!failDb(e)) throw e;
+    }
   }
 
   async function shiftMonth(n: number) {
@@ -110,7 +127,7 @@ export const useLedgerStore = defineStore('ledger', () => {
       selectedDate.value = null;
       activeTab.value = 'summary';
     }
-    await reload();
+    await reloadQuietly();
   }
   const goPrev = () => shiftMonth(-1);
   const goNext = () => shiftMonth(1);
@@ -121,7 +138,7 @@ export const useLedgerStore = defineStore('ledger', () => {
     recomputePeriod();
     selectedDate.value = today.value;
     activeTab.value = 'day';
-    await reload();
+    await reloadQuietly();
   }
 
   function select(date: DateStr) {
@@ -145,21 +162,27 @@ export const useLedgerStore = defineStore('ledger', () => {
     period.value = accountPeriod(viewMonth.value, newDay);
     selectedDate.value = today.value;
     activeTab.value = 'day';
-    await reload();
+    await reloadQuietly();
   }
 
   async function write(fn: () => Promise<unknown>): Promise<boolean> {
     saving.value = true;
     try {
       await fn();
-      await reload();
-      return true;
     } catch (e) {
-      toast.value = messageForError(e);
+      if (!failDb(e)) toast.value = messageForError(e);
+      saving.value = false;
       return false;
+    }
+    try {
+      await reload();
+    } catch (e) {
+      // 쓰기는 이미 저장됐다. 다시 시도하면 중복되므로 true를 돌려준다.
+      if (!failDb(e)) toast.value = MESSAGES.reloadFailed;
     } finally {
       saving.value = false;
     }
+    return true;
   }
 
   const addExpense = (input: NewExpense) => write(() => api.addExpense(input));
@@ -173,9 +196,10 @@ export const useLedgerStore = defineStore('ledger', () => {
     try {
       await api.saveNote(month, categoryId, note);
     } catch (e) {
-      toast.value = messageForError(e);
+      if (!failDb(e)) toast.value = messageForError(e);
       return false;
     }
+    if (viewMonth.value !== month) return true;
     const rest = data.value.notes.filter((n) => !(n.month === month && n.categoryId === categoryId));
     data.value = {
       ...data.value,

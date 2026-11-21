@@ -226,4 +226,49 @@ describe('ledger store', () => {
     await s.refreshCategories();
     expect(s.categories).toHaveLength(2);
   });
+  it('늦게 도착한 이전 달 응답은 버린다 (경합)', async () => {
+    setup();
+    const s = useLedgerStore();
+    await s.init();
+    const resolvers: ((d: typeof EMPTY) => void)[] = [];
+    vi.mocked(api.loadPeriod).mockImplementation(() => new Promise((r) => resolvers.push(r)));
+    const p1 = s.goNext(); // 2026-12
+    const p2 = s.goNext(); // 2027-01
+    const exp = { id: 'x', date: '2026-12-01', description: 'old', amount: 1, categoryId: 1 };
+    resolvers[1](EMPTY);
+    await p2;
+    resolvers[0]({ ...EMPTY, expenses: [exp] });
+    await p1;
+    expect(s.viewMonth).toBe('2027-01');
+    expect(s.data.expenses).toEqual([]);
+  });
+
+  it('쓰기 성공 후 다시 불러오기 실패는 true와 reloadFailed', async () => {
+    setup();
+    const s = useLedgerStore();
+    await s.init();
+    vi.mocked(api.addExpense).mockResolvedValue({} as never);
+    vi.mocked(api.loadPeriod).mockRejectedValue(new Error('net'));
+    expect(await s.addExpense({ date: '2026-11-15', description: 'a', amount: 1, categoryId: 1 })).toBe(true);
+    expect(s.toast).toBe(MESSAGES.reloadFailed);
+    expect(s.saving).toBe(false);
+  });
+
+  it('init 중 일반 오류도 dbError로 알린다', async () => {
+    setup();
+    vi.mocked(api.bootstrap).mockRejectedValue(new Error('broken'));
+    const s = useLedgerStore();
+    await expect(s.init()).resolves.toBeUndefined();
+    expect(s.dbError).toBe('broken');
+    expect(s.ready).toBe(true);
+  });
+
+  it('쓰기 중 db_unavailable이면 dbError', async () => {
+    setup();
+    const s = useLedgerStore();
+    await s.init();
+    vi.mocked(api.deleteExpense).mockRejectedValue(new api.ApiError('db_unavailable', 'gone'));
+    expect(await s.deleteExpense('x')).toBe(false);
+    expect(s.dbError).toBe('gone');
+  });
 });

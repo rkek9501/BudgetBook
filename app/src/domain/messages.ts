@@ -22,4 +22,5 @@ export const MESSAGES = {
   noExpenseBlocked: '지출이 있는 날은 무지출로 표시할 수 없어요',
   lastCategory: '카테고리는 최소 1개가 있어야 해요.',
   saveFailed: '저장하지 못했어요. 다시 시도해 주세요.',
+  reloadFailed: '저장했지만 화면을 새로 고치지 못했어요. 다시 시도해 주세요.',
 } as const;
