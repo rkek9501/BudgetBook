@@ -1,0 +1,25 @@
+export const MESSAGES = {
+  descriptionRequired: '내용을 입력해주세요.',
+  amountInvalid: '금액을 올바르게 입력해주세요.',
+  amountNegative: '금액은 0 이상으로 입력해주세요.',
+  amountInvalidForEdit: '금액을 0 이상의 숫자로 입력해주세요.',
+  amountTooLarge: '금액은 999억 9999만 9999원까지 입력할 수 있어요.',
+  categoryRequired: '분류를 선택해주세요.',
+  categoryNameRequired: '카테고리 이름을 입력해주세요.',
+  categoryDuplicate: '이미 존재하는 카테고리입니다.',
+  colorInvalid: '색상을 #RRGGBB 형식으로 입력하거나 팔레트에서 선택해주세요.',
+  fixedNameRequired: '항목 이름을 입력하세요.',
+  fixedDuplicate: '이미 등록된 항목 이름입니다.',
+  fixedAmountInvalid: (name: string) => `'${name}'의 금액을 올바르게 입력하세요. (0 이상의 숫자)`,
+  confirmDeleteExpense: '선택한 항목을 삭제하시겠습니까?',
+  confirmDeleteCategory: (name: string) => `'${name}' 카테고리를 삭제하시겠습니까?`,
+  confirmDeleteCategoryWithNotes: (name: string, n: number) =>
+    `'${name}' 카테고리를 삭제하시겠습니까? 메모 ${n}개도 함께 삭제됩니다.`,
+  confirmDeleteFixed: (name: string) =>
+    `'${name}' 항목을 삭제할까요?\n저장된 모든 월의 금액도 함께 삭제됩니다.`,
+  emptyMonth: '지출 내역이 없습니다.',
+  emptyFixed: '등록된 고정 지출 항목이 없습니다.',
+  noExpenseBlocked: '지출이 있는 날은 무지출로 표시할 수 없어요',
+  lastCategory: '카테고리는 최소 1개가 있어야 해요.',
+  saveFailed: '저장하지 못했어요. 다시 시도해 주세요.',
+} as const;
