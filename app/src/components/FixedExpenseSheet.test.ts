@@ -108,6 +108,24 @@ describe('FixedExpenseSheet', () => {
     w.unmount();
   });
 
+  it('잘못된 금액이 다른 달에 있으면 그 달로 옮기고 그 칸에 포커스', async () => {
+    const w = await setup();
+    // 10월로 이동해 통신비 칸에 잘못된 값을 넣고, 11월로 돌아와서 저장한다
+    q('[aria-label="이전 달"]')!.click();
+    await flushPromises();
+    await type(amountInputs()[1], 'abc');
+    q('[aria-label="다음 달"]')!.click();
+    await flushPromises();
+    expect(q('.month-title')!.textContent).toContain('11월');
+    btn('저장').click();
+    await flushPromises();
+    expect(api.saveFixed).not.toHaveBeenCalled();
+    expect(q('.month-title')!.textContent).toContain('10월');
+    expect(q('.save-error')!.textContent).toBe(MESSAGES.fixedAmountInvalid('통신비'));
+    expect(document.activeElement).toBe(amountInputs()[1]);
+    w.unmount();
+  });
+
   it('삭제는 확인 뒤 항목과 금액을 제거, 저장 실패는 시트 유지', async () => {
     const w = await setup();
     q('[aria-label="월세 삭제"]')!.click();

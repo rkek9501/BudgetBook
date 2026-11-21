@@ -155,6 +155,14 @@ describe('parseWindowsData', () => {
     ]);
   });
 
+  it('고정 지출: 원래 있던 고유 이름은 바꾸지 않고 중복만 빈 번호를 받는다', () => {
+    const r = parse({
+      Categories: [], DayData: [],
+      FixedExpenses: [{ Name: '월세' }, { Name: '월세' }, { Name: '월세 (2)' }],
+    });
+    expect(r.payload.fixedItems.map((i) => i.name)).toEqual(['월세', '월세 (3)', '월세 (2)']);
+  });
+
   it('고정 지출: 세 번 겹치면 (2), (3)이고 이미 있는 이름과도 겹치지 않는다', () => {
     const r = parse({
       Categories: [], DayData: [],

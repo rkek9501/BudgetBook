@@ -308,8 +308,8 @@ describe('useShortcuts', () => {
   it('⌘N: 다른 배열의 문자 키(code만 KeyN)는 가로채지 않음', () => {
     const { ledger } = setup();
     ledger.activeTab = 'summary';
-    // 예: Dvorak에서 KeyN 자리의 'l'
-    const e = key('l', window, { code: 'KeyN' });
+    // 예: Dvorak에서 KeyN 자리의 'b'
+    const e = key('b', window, { code: 'KeyN' });
     expect(e.defaultPrevented).toBe(false);
     expect(ledger.activeTab).toBe('summary');
   });

@@ -16,11 +16,11 @@
   --thumb-macos-surface: #ffffff;
   --thumb-macos-accent: #0060df;
   --thumb-diary-bg: #fff8e7;
-  --thumb-diary-surface: #fbefd0;
+  --thumb-diary-surface: #fffdf6;
   --thumb-diary-accent: #e28a00;
-  --thumb-mono-bg: #f2f2f2;
-  --thumb-mono-surface: #ffffff;
-  --thumb-mono-accent: #222222;
+  --thumb-mono-bg: #ffffff;
+  --thumb-mono-surface: #f7f7f7;
+  --thumb-mono-accent: #111111;
   color-scheme: light;
 }
 

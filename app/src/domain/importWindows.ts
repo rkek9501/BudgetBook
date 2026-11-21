@@ -110,6 +110,13 @@ export function parseWindowsData(text: string): ImportResult {
   // 고정 지출
   const fixedItems: ImportPayload['fixedItems'] = [];
   const fixedNames = new Set<string>();
+  // 원래 이름의 키를 먼저 모두 예약해, 중복에 붙이는 번호가 원래 이름과 겹치지 않게 한다.
+  const reservedNames = new Set<string>();
+  if (Array.isArray(root.FixedExpenses)) {
+    for (const f of root.FixedExpenses) {
+      if (isObj(f) && typeof f.Name === 'string') reservedNames.add(nameKey(f.Name));
+    }
+  }
   if (Array.isArray(root.FixedExpenses)) {
     for (const f of root.FixedExpenses) {
       if (!isObj(f) || typeof f.Name !== 'string') continue;
@@ -118,7 +125,7 @@ export function parseWindowsData(text: string): ImportResult {
       if (fixedNames.has(nameKey(name))) {
         const base = name;
         let n = 2;
-        while (fixedNames.has(nameKey(`${base} (${n})`))) n++;
+        while (fixedNames.has(nameKey(`${base} (${n})`)) || reservedNames.has(nameKey(`${base} (${n})`))) n++;
         name = `${base} (${n})`;
       }
       fixedNames.add(nameKey(name));
