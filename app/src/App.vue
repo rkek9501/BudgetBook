@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted } from 'vue';
 import AppShell from '@/components/AppShell.vue';
+import MainLayout from '@/components/MainLayout.vue';
 import { useAppearance } from '@/composables/useAppearance';
 import { useLedgerStore } from '@/stores/ledger';
 
@@ -13,12 +14,7 @@ onMounted(() => {
 
 <template>
   <AppShell>
-    <main class="placeholder">가계부</main>
+    <MainLayout />
   </AppShell>
 </template>
 
-<style scoped>
-.placeholder {
-  padding: var(--space-4);
-}
-</style>
