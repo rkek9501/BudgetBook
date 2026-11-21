@@ -1,5 +1,6 @@
 import type { DateStr, MonthStr } from './types';
 import { normalizeHex } from './categories';
+import { MAX_AMOUNT } from './money';
 
 export interface ImportPayload {
   categories: { sourceId: number; name: string; color: string }[];
@@ -23,7 +24,6 @@ export type ImportResult =
 
 const DEFAULT_COLOR = '#BDBDBD';
 const UNCLASSIFIED_NAME = '미분류';
-const UNCLASSIFIED_ID = -1;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const MONTH_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
 const NOTE_KEY_RE = /^(\d{4}-(?:0[1-9]|1[0-2])):(-?\d+)$/;
@@ -31,7 +31,11 @@ const NOTE_KEY_RE = /^(\d{4}-(?:0[1-9]|1[0-2])):(-?\d+)$/;
 type Obj = Record<string, unknown>;
 const isObj = (v: unknown): v is Obj => typeof v === 'object' && v !== null && !Array.isArray(v);
 const nameKey = (s: string) => s.trim().toLocaleLowerCase('ko');
-const amountOf = (v: unknown) => Math.max(0, Math.round(Number(v) || 0));
+const amountOf = (v: unknown) => {
+  const n = Math.round(Number(v));
+  if (!Number.isFinite(n) || n < 0) return 0;
+  return Math.min(n, MAX_AMOUNT);
+};
 
 export function parseWindowsData(text: string): ImportResult {
   let root: unknown;
@@ -73,9 +77,11 @@ export function parseWindowsData(text: string): ImportResult {
     unclassified++;
     const existing = byName.get(nameKey(UNCLASSIFIED_NAME));
     if (existing !== undefined) return existing;
-    categories.push({ sourceId: UNCLASSIFIED_ID, name: UNCLASSIFIED_NAME, color: DEFAULT_COLOR });
-    byName.set(nameKey(UNCLASSIFIED_NAME), UNCLASSIFIED_ID);
-    return UNCLASSIFIED_ID;
+    // 원본 ID와 겹치지 않는 가상 ID (원본에 음수 ID가 있어도 안전)
+    const id = Math.min(0, ...categories.map(c => c.sourceId)) - 1;
+    categories.push({ sourceId: id, name: UNCLASSIFIED_NAME, color: DEFAULT_COLOR });
+    byName.set(nameKey(UNCLASSIFIED_NAME), id);
+    return id;
   };
 
   // 지출과 무지출

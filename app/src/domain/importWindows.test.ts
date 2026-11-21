@@ -158,4 +158,44 @@ describe('parseWindowsData', () => {
     expect(r.payload.categories).toHaveLength(1);
     expect(r.payload.expenses).toHaveLength(1);
   });
+
+  it('금액 상한: 비유한/음수 -> 0, 초과 -> MAX_AMOUNT (지출·고정 지출)', () => {
+    const text = `{"Categories":[{"Id":1,"CategoryName":"A","Color":"#FCB9BA"}],
+      "DayData":[
+        {"Date":"2026-11-15","Description":"a","Amount":1e999,"CategoryId":1},
+        {"Date":"2026-11-15","Description":"b","Amount":1e300,"CategoryId":1},
+        {"Date":"2026-11-15","Description":"c","Amount":-5,"CategoryId":1}],
+      "FixedExpenses":[{"Name":"f","MonthlyAmounts":{"2026-01":1e999,"2026-02":1e300,"2026-03":-5}}]}`;
+    const r = parseWindowsData(text) as Ok;
+    expect(r.payload.expenses.map(e => e.amount)).toEqual([0, 99999999999, 0]);
+    expect(r.payload.fixedItems[0].amounts).toEqual([{ month: '2026-02', amount: 99999999999 }]);
+  });
+
+  it('가상 미분류 ID는 원본 ID -1과 겹치지 않는다', () => {
+    const r = parse({ Categories: [cat(-1, 'Neg')], DayData: [day({ CategoryId: 9 }), day({ CategoryId: -1 })] });
+    expect(r.payload.categories.map(c => c.name)).toEqual(['Neg', '미분류']);
+    const [neg, un] = r.payload.categories;
+    expect(un.sourceId).not.toBe(neg.sourceId);
+    expect(r.payload.expenses.map(e => e.sourceCategoryId)).toEqual([un.sourceId, neg.sourceId]);
+  });
+
+  it('중복 카테고리 메모는 줄바꿈으로 합쳐진다', () => {
+    const r = parse({
+      Categories: [cat(1, 'Food'), cat(2, 'food')], DayData: [],
+      CategoryNotes: { '2026-11:1': 'a', '2026-11:2': 'b' },
+    });
+    expect(r.payload.notes).toEqual([{ month: '2026-11', sourceCategoryId: 1, note: 'a\nb' }]);
+    expect(r.preview.notes).toBe(1);
+    expect(r.preview.unclassified).toBe(0);
+  });
+
+  it('알 수 없는 카테고리 메모 2개가 미분류로 합쳐지면 unclassified는 메모 건수(2)', () => {
+    const r = parse({
+      Categories: [cat(1, 'A')], DayData: [],
+      CategoryNotes: { '2026-11:7': 'x', '2026-11:8': 'y' },
+    });
+    expect(r.payload.notes).toEqual([{ month: '2026-11', sourceCategoryId: -1, note: 'x\ny' }]);
+    expect(r.preview.notes).toBe(1);
+    expect(r.preview.unclassified).toBe(2);
+  });
 });
