@@ -137,7 +137,9 @@ fn damaged() -> AppError {
     AppError::InvalidInput("백업 파일이 손상되어 복원할 수 없습니다.".into())
 }
 
-/// The file must open read-only, have a known schema version and a readable expenses table.
+/// The file must open read-only, have a known schema version, pass `quick_check`
+/// (the same check `db::open` applies, so a swapped-in backup is never rejected on reopen)
+/// and have a readable expenses table.
 fn verify_usable(path: &Path) -> AppResult<()> {
     let conn = Connection::open_with_flags(
         path,
@@ -148,6 +150,12 @@ fn verify_usable(path: &Path) -> AppResult<()> {
         .query_row("PRAGMA user_version", [], |r| r.get(0))
         .map_err(|_| damaged())?;
     if !(1..=db::LATEST_VERSION).contains(&version) {
+        return Err(damaged());
+    }
+    let check: String = conn
+        .query_row("PRAGMA quick_check(1)", [], |r| r.get(0))
+        .map_err(|_| damaged())?;
+    if !check.eq_ignore_ascii_case("ok") {
         return Err(damaged());
     }
     conn.query_row("SELECT count(*) FROM expenses", [], |r| r.get::<_, i64>(0))
@@ -456,6 +464,38 @@ mod tests {
     #[test]
     fn restore_rejects_empty_backup() {
         assert_rejected_and_intact("budgetbook-20200101-010102.db", b"");
+    }
+
+    #[test]
+    fn restore_rejects_backup_with_corrupt_page_outside_expenses() {
+        // expenses는 읽히지만 다른 테이블 페이지가 손상된 백업. quick_check로만 잡힌다.
+        let t = tempfile::tempdir().unwrap();
+        let p = t.path().join("bad.db");
+        {
+            let c = Connection::open(&p).unwrap();
+            c.execute_batch(
+                "CREATE TABLE expenses(id TEXT PRIMARY KEY);
+                 CREATE TABLE filler(x TEXT);
+                 PRAGMA user_version = 1;",
+            )
+            .unwrap();
+            let tx = c.unchecked_transaction().unwrap();
+            for i in 0..5000 {
+                tx.execute(
+                    "INSERT INTO filler VALUES (?1)",
+                    [format!("filler-row-{i:06}-xxxxxxxxxxxxxxxxxxxxxxxx")],
+                )
+                .unwrap();
+            }
+            tx.commit().unwrap();
+        }
+        let mut bytes = std::fs::read(&p).unwrap();
+        let target = 4096 * 40;
+        assert!(bytes.len() > target + 4096);
+        for b in &mut bytes[target..target + 4096] {
+            *b = 0xAB;
+        }
+        assert_rejected_and_intact("budgetbook-20200101-010103.db", &bytes);
     }
 
     #[test]
