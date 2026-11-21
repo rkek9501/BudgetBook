@@ -82,7 +82,7 @@ export const useLedgerStore = defineStore('ledger', () => {
     try {
       await reload();
     } catch (e) {
-      if (!failDb(e)) toast.value = MESSAGES.reloadFailed;
+      if (!failDb(e)) toast.value = MESSAGES.loadFailed;
     }
   }
 

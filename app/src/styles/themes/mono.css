@@ -1,0 +1,39 @@
+/* 미니멀 모노톤: 흑백 위주, 큰 숫자, 색은 카테고리 색만 */
+html[data-theme='mono'] {
+  --radius-card: 4px;
+  --radius-chip: 2px;
+}
+
+html[data-theme='mono'][data-appearance='light'] {
+  --bg: #ffffff;
+  --surface: #f7f7f7;
+  --surface-2: #ededed;
+  --text: #111111;
+  --text-muted: #5e5e5e;
+  --border: #d4d4d4;
+  --accent: #111111;
+  --on-accent: #ffffff;
+  --danger: #b00020;
+  --sunday: #5e5e5e;
+  --saturday: #5e5e5e;
+  --today-ring: #111111;
+  --selected-ring: #111111;
+  --shadow-sheet: 0 8px 28px rgba(0, 0, 0, 0.16);
+}
+
+html[data-theme='mono'][data-appearance='dark'] {
+  --bg: #000000;
+  --surface: #111111;
+  --surface-2: #1e1e1e;
+  --text: #f2f2f2;
+  --text-muted: #a6a6a6;
+  --border: #333333;
+  --accent: #ffffff;
+  --on-accent: #000000;
+  --danger: #ff6b6b;
+  --sunday: #a6a6a6;
+  --saturday: #a6a6a6;
+  --today-ring: #ffffff;
+  --selected-ring: #ffffff;
+  --shadow-sheet: 0 8px 28px rgba(0, 0, 0, 0.8);
+}

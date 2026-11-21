@@ -1,0 +1,62 @@
+/* 공통 토큰과 기본 스타일. 색은 themes/*.css 에서 테마 × 라이트·다크 6세트로 정의한다. */
+@import './themes/macos.css';
+@import './themes/diary.css';
+@import './themes/mono.css';
+
+:root {
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 20px;
+  --font-ui: -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
+  --font-size-base: 14px;
+  color-scheme: light;
+}
+
+html[data-appearance='dark'] {
+  color-scheme: dark;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: var(--font-size-base);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+:focus-visible {
+  outline: 2px solid var(--selected-ring);
+  outline-offset: 2px;
+}
+
+/* 금액은 모든 테마에서 고정폭 숫자로 정렬한다. */
+.amount {
+  font-variant-numeric: tabular-nums;
+}

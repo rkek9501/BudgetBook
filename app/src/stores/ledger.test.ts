@@ -255,6 +255,15 @@ describe('ledger store', () => {
     expect(s.saving).toBe(false);
   });
 
+  it('화면 이동 중 불러오기 실패는 loadFailed(저장 문구 아님)', async () => {
+    setup();
+    const s = useLedgerStore();
+    await s.init();
+    vi.mocked(api.loadPeriod).mockRejectedValue(new Error('net'));
+    await s.goNext();
+    expect(s.toast).toBe(MESSAGES.loadFailed);
+  });
+
   it('init 중 일반 오류도 dbError로 알린다', async () => {
     setup();
     vi.mocked(api.bootstrap).mockRejectedValue(new Error('broken'));

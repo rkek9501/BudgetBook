@@ -1,0 +1,39 @@
+/* 따뜻한 다이어리: 크림 바탕(#FFF8E7), 둥근 카드, 주황 포인트(#E28A00). 어두운 버전은 짙은 갈색 */
+html[data-theme='diary'] {
+  --radius-card: 12px;
+  --radius-chip: 999px;
+}
+
+html[data-theme='diary'][data-appearance='light'] {
+  --bg: #fff8e7;
+  --surface: #fffdf6;
+  --surface-2: #fbefd0;
+  --text: #3b2a14;
+  --text-muted: #745a3a;
+  --border: #e8d9b5;
+  --accent: #e28a00;
+  --on-accent: #2b1b00;
+  --danger: #b3261e;
+  --sunday: #b3261e;
+  --saturday: #0f5a9e;
+  --today-ring: #e28a00;
+  --selected-ring: #b86e00;
+  --shadow-sheet: 0 12px 36px rgba(90, 60, 10, 0.22);
+}
+
+html[data-theme='diary'][data-appearance='dark'] {
+  --bg: #2a1f16;
+  --surface: #382a1d;
+  --surface-2: #463525;
+  --text: #f6e9d2;
+  --text-muted: #c9b393;
+  --border: #5a4630;
+  --accent: #f0a12a;
+  --on-accent: #2b1b00;
+  --danger: #ff8a80;
+  --sunday: #ff8a80;
+  --saturday: #7db8f0;
+  --today-ring: #f0a12a;
+  --selected-ring: #f0a12a;
+  --shadow-sheet: 0 12px 36px rgba(0, 0, 0, 0.55);
+}
