@@ -16,6 +16,10 @@ pub fn build(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
             &PredefinedMenuItem::about(app, Some("가계부 정보"), None)?,
             &item("settings", "설정…", Some("CmdOrCtrl+,"))?,
             &PredefinedMenuItem::separator(app)?,
+            &PredefinedMenuItem::hide(app, Some("가계부 가리기"))?,
+            &PredefinedMenuItem::hide_others(app, Some("다른 앱 가리기"))?,
+            &PredefinedMenuItem::show_all(app, Some("모두 보기"))?,
+            &PredefinedMenuItem::separator(app)?,
             &PredefinedMenuItem::quit(app, Some("가계부 종료"))?,
         ],
     )?;
@@ -56,7 +60,21 @@ pub fn build(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
             &item("tab-summary", "요약 탭", Some("CmdOrCtrl+2"))?,
         ],
     )?;
-    Menu::with_items(app, &[&app_menu, &file_menu, &edit_menu, &view_menu])
+    let window_menu = Submenu::with_items(
+        app,
+        "윈도우",
+        true,
+        &[
+            &PredefinedMenuItem::minimize(app, Some("최소화"))?,
+            &PredefinedMenuItem::maximize(app, Some("확대/축소"))?,
+            &PredefinedMenuItem::separator(app)?,
+            &PredefinedMenuItem::close_window(app, Some("윈도우 닫기"))?,
+        ],
+    )?;
+    Menu::with_items(
+        app,
+        &[&app_menu, &file_menu, &edit_menu, &view_menu, &window_menu],
+    )
 }
 
 pub fn handle_event(app: &AppHandle, id: &str) {
