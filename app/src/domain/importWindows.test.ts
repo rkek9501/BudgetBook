@@ -138,7 +138,7 @@ describe('parseWindowsData', () => {
     expect(r.preview.unclassified).toBe(1);
   });
 
-  it('고정 지출: 중복 이름 무시, 월 정렬, 순서', () => {
+  it('고정 지출: 중복 이름은 (2)를 붙여 금액까지 가져옴, 월 정렬, 순서', () => {
     const r = parse({
       Categories: [], DayData: [],
       FixedExpenses: [
@@ -150,8 +150,28 @@ describe('parseWindowsData', () => {
     });
     expect(r.payload.fixedItems).toEqual([
       { name: '월세', sortOrder: 0, amounts: [{ month: '2026-10', amount: 1 }, { month: '2026-11', amount: 2 }] },
-      { name: '통신', sortOrder: 1, amounts: [] },
+      { name: '월세 (2)', sortOrder: 1, amounts: [{ month: '2026-09', amount: 9 }] },
+      { name: '통신', sortOrder: 2, amounts: [] },
     ]);
+  });
+
+  it('고정 지출: 세 번 겹치면 (2), (3)이고 이미 있는 이름과도 겹치지 않는다', () => {
+    const r = parse({
+      Categories: [], DayData: [],
+      FixedExpenses: [
+        { Name: '보험', MonthlyAmounts: { '2026-11': 1 } },
+        { Name: '보험 (2)', MonthlyAmounts: { '2026-11': 5 } },
+        { Name: 'BOHUM', MonthlyAmounts: {} },
+        { Name: '보험', MonthlyAmounts: { '2026-11': 2 } },
+        { Name: ' 보험 ', MonthlyAmounts: { '2026-11': 3 } },
+        { Name: 'bohum', MonthlyAmounts: { '2026-11': 4 } },
+      ],
+    });
+    expect(r.payload.fixedItems.map((i) => i.name)).toEqual([
+      '보험', '보험 (2)', 'BOHUM', '보험 (3)', '보험 (4)', 'bohum (2)',
+    ]);
+    expect(r.payload.fixedItems.map((i) => i.amounts[0]?.amount)).toEqual([1, 5, undefined, 2, 3, 4]);
+    expect(r.payload.fixedItems.map((i) => i.sortOrder)).toEqual([0, 1, 2, 3, 4, 5]);
   });
 
   it('시작일 기본값과 검증, 선택 섹션 누락', () => {

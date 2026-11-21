@@ -113,10 +113,15 @@ export function parseWindowsData(text: string): ImportResult {
   if (Array.isArray(root.FixedExpenses)) {
     for (const f of root.FixedExpenses) {
       if (!isObj(f) || typeof f.Name !== 'string') continue;
-      const name = f.Name.trim();
-      const key = nameKey(name);
-      if (fixedNames.has(key)) continue;
-      fixedNames.add(key);
+      let name = f.Name.trim();
+      // 이름이 겹치면 버리지 않고 " (2)", " (3)"을 붙여 금액 기록을 모두 가져온다.
+      if (fixedNames.has(nameKey(name))) {
+        const base = name;
+        let n = 2;
+        while (fixedNames.has(nameKey(`${base} (${n})`))) n++;
+        name = `${base} (${n})`;
+      }
+      fixedNames.add(nameKey(name));
       const amounts: { month: MonthStr; amount: number }[] = [];
       if (isObj(f.MonthlyAmounts)) {
         for (const [month, v] of Object.entries(f.MonthlyAmounts)) {
