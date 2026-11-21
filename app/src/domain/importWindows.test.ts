@@ -53,6 +53,13 @@ describe('parseWindowsData', () => {
     expect(r.preview).toEqual({ categories: 1, expenses: 1, noExpenseDays: 1, fixedItems: 1, notes: 1, unclassified: 0 });
   });
 
+  it('UTF-8 BOM이 앞에 붙은 파일도 같은 결과', () => {
+    const plain = parseWindowsData(SPEC_EXAMPLE_JSON) as Ok;
+    const bom = parseWindowsData('﻿' + SPEC_EXAMPLE_JSON) as Ok;
+    expect(bom.ok).toBe(true);
+    expect(bom.payload).toEqual(plain.payload);
+  });
+
   it('손상된 JSON', () => expect(parseWindowsData('{"Categories": [')).toEqual({ ok: false, error: 'invalid-json' }));
 
   it.each(['{}', '[]', '{"Categories": [], "DayData": 3}'])('형식이 다른 JSON %s', t =>

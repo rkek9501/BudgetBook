@@ -71,9 +71,10 @@ async function confirmImport() {
     info.value = `카테고리 ${res.categories}개, 지출 ${res.expenses}건, 무지출 ${res.noExpenseDays}일, 고정 지출 ${res.fixedItems}개, 메모 ${res.notes}개를 가져왔어요.`;
     backupKey.value++;
     imported = true;
-  } catch {
+  } catch (e) {
     pending.value = null;
-    error.value = MESSAGES.saveFailed;
+    const code = e instanceof Error ? (e as { code?: unknown }).code : undefined;
+    error.value = code === 'invalid_input' ? MESSAGES.importInvalid : MESSAGES.saveFailed;
   } finally {
     busy.value = false;
   }

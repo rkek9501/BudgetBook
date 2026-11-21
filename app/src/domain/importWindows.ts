@@ -40,7 +40,8 @@ const amountOf = (v: unknown) => {
 export function parseWindowsData(text: string): ImportResult {
   let root: unknown;
   try {
-    root = JSON.parse(text);
+    // 메모장 등에서 저장한 UTF-8 BOM이 앞에 붙어 있어도 읽는다.
+    root = JSON.parse(text.charCodeAt(0) === 0xfeff ? text.slice(1) : text);
   } catch {
     return { ok: false, error: 'invalid-json' };
   }

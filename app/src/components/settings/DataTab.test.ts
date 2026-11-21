@@ -119,6 +119,18 @@ describe('DataTab', () => {
     expect(init).not.toHaveBeenCalled();
   });
 
+  it('가져오기가 invalid_input으로 거부되면 전용 문구', async () => {
+    const preview = { categories: 1, expenses: 0, noExpenseDays: 0, fixedItems: 0, notes: 0, unclassified: 0 };
+    vi.mocked(parseWindowsData).mockReturnValue({ ok: true, payload: {}, preview } as never);
+    const { w, init } = setup();
+    await pick(w);
+    vi.mocked(api.importReplaceAll).mockRejectedValue(Object.assign(new Error('x'), { code: 'invalid_input' }));
+    await btn(w, '가져오기')!.trigger('click');
+    await flushPromises();
+    expect(w.find('[role="alert"]').text()).toBe(MESSAGES.importInvalid);
+    expect(init).not.toHaveBeenCalled();
+  });
+
   it('내보내기: 기본 파일명, exportJson, 완료 문구', async () => {
     vi.mocked(save).mockResolvedValue('C:/out.json');
     vi.mocked(api.exportJson).mockResolvedValue();
