@@ -4,7 +4,7 @@ import { isImeKey } from './useAmountInput';
 
 const isMac = () => /Mac/.test(navigator.platform || navigator.userAgent);
 
-function dialogOpen(): boolean {
+export function dialogOpen(): boolean {
   return document.querySelector('[role="dialog"], [role="alertdialog"]') !== null;
 }
 

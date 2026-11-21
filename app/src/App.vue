@@ -2,7 +2,7 @@
 import { onBeforeUnmount, onMounted, ref } from 'vue';
 import { onMenu, openBackupFolder } from '@/api/commands';
 import { MESSAGES } from '@/domain/messages';
-import { useShortcuts } from '@/composables/useShortcuts';
+import { dialogOpen, useShortcuts } from '@/composables/useShortcuts';
 import AppShell from '@/components/AppShell.vue';
 import FixedExpenseSheet from '@/components/FixedExpenseSheet.vue';
 import MainLayout from '@/components/MainLayout.vue';
@@ -22,9 +22,6 @@ async function onFixedSaved() {
   await ledger.reload();
 }
 
-function dialogOpen(): boolean {
-  return document.querySelector('[role="dialog"], [role="alertdialog"]') !== null;
-}
 function openSettings(tab: 'general' | 'categories' | 'data', action: 'import' | 'export' | null) {
   settingsTab.value = tab;
   settingsAction.value = action;

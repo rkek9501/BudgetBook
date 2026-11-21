@@ -4,7 +4,8 @@ import { defineComponent } from 'vue';
 import { createPinia, setActivePinia } from 'pinia';
 
 const h = vi.hoisted(() => ({ menu: null as ((id: string) => void) | null, unlisten: vi.fn(), open: vi.fn() }));
-vi.mock('@/api/commands', () => ({
+vi.mock('@/api/commands', async (orig) => ({
+  ...(await orig<object>()),
   onMenu: vi.fn(async (fn: (id: string) => void) => {
     h.menu = fn;
     return h.unlisten;
@@ -13,6 +14,7 @@ vi.mock('@/api/commands', () => ({
 }));
 
 import App from '@/App.vue';
+import RightPanel from '@/components/RightPanel.vue';
 import { useShortcuts } from './useShortcuts';
 import { useLedgerStore } from '@/stores/ledger';
 import { MESSAGES } from '@/domain/messages';
@@ -160,5 +162,37 @@ describe('useShortcuts', () => {
     w.unmount();
     key('n');
     expect(ledger.focusTick).toBe(before);
+  });
+});
+
+describe('⌘N 포커스 (폼이 아직 마운트되지 않은 경우)', () => {
+  it.each([
+    ['요약 탭', 'summary', '2026-11-15'],
+    ['선택한 날짜 없음', 'day', null],
+  ] as const)('%s에서 ⌘N → 내용 칸이 포커스를 받는다', async (_n, tab, sel) => {
+    setActivePinia(createPinia());
+    const ledger = useLedgerStore();
+    ledger.categories = [{ id: 1, name: '식비', color: '#FCB9BA' }];
+    ledger.selectedDate = sel;
+    ledger.activeTab = tab;
+    mount(
+      defineComponent({
+        components: { RightPanel },
+        setup() {
+          useShortcuts();
+        },
+        template: '<RightPanel />',
+      }),
+      { attachTo: document.body },
+    );
+    await flushPromises();
+    window.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'n', ctrlKey: true, metaKey: true, bubbles: true, cancelable: true }),
+    );
+    await flushPromises();
+    const desc = document.querySelector('form.expense-form input') as HTMLInputElement;
+    expect(desc).not.toBeNull();
+    expect(document.activeElement).toBe(desc);
+    expect(ledger.focusPending).toBe(false);
   });
 });

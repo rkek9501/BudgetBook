@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { nextTick, ref, watch } from 'vue';
+import { nextTick, onMounted, ref, watch } from 'vue';
 import type { DateStr } from '@/domain/types';
 import { useLedgerStore } from '@/stores/ledger';
 import { isImeKey, useAmountInput } from '@/composables/useAmountInput';
@@ -34,13 +34,20 @@ function focusDescription() {
   descEl.value?.focus();
 }
 defineExpose({ focusDescription });
+// 폼이 아직 없을 때(요약 탭 등) 요청되면 마운트 시점에 처리한다.
+function consumeFocusRequest() {
+  if (!ledger.focusPending) return;
+  ledger.focusPending = false;
+  focusDescription();
+}
 watch(
   () => ledger.focusTick,
   async () => {
     await nextTick();
-    focusDescription();
+    consumeFocusRequest();
   },
 );
+onMounted(consumeFocusRequest);
 
 function onEnter(e: KeyboardEvent, next: () => void) {
   if (isImeKey(e)) return;

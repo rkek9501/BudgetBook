@@ -41,6 +41,7 @@ export const useLedgerStore = defineStore('ledger', () => {
   const toast = ref<string | null>(null);
   const saving = ref(false);
   const focusTick = ref(0);
+  const focusPending = ref(false);
 
   const sortedCategories = computed(() => sortCategories(categories.value));
   const dayCells = computed(() =>
@@ -215,6 +216,7 @@ export const useLedgerStore = defineStore('ledger', () => {
   }
 
   function requestDescriptionFocus() {
+    focusPending.value = true;
     focusTick.value += 1;
   }
 
@@ -223,7 +225,7 @@ export const useLedgerStore = defineStore('ledger', () => {
   }
 
   return {
-    ready, dbError, categories, viewMonth, period, selectedDate, activeTab, data, today, toast, saving, focusTick,
+    ready, dbError, categories, viewMonth, period, selectedDate, activeTab, data, today, toast, saving, focusTick, focusPending,
     sortedCategories, dayCells, summary,
     init, reload, refreshCategories, goPrev, goNext, goToday, select, setTab, refreshToday,
     onStartDayChanged, addExpense, updateExpense, deleteExpense, setNoExpense, saveNote, clearToast,
