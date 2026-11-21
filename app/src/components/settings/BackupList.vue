@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
 import * as api from '@/api/commands';
+import { MESSAGES } from '@/domain/messages';
 import type { BackupInfo } from '@/api/commands';
 import ConfirmDialog from '@/components/ConfirmDialog.vue';
 
@@ -57,7 +58,7 @@ async function openFolder() {
   try {
     await api.openBackupFolder();
   } catch {
-    error.value = '백업 폴더를 열지 못했어요.';
+    error.value = MESSAGES.openFolderFailed;
   }
 }
 </script>

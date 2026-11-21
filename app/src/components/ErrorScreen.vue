@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import * as api from '@/api/commands';
+import { MESSAGES } from '@/domain/messages';
 import BackupList from '@/components/settings/BackupList.vue';
 import { useLedgerStore } from '@/stores/ledger';
 
@@ -35,7 +36,7 @@ async function openFolder() {
   try {
     await api.openBackupFolder();
   } catch {
-    inlineError.value = '백업 폴더를 열지 못했어요.';
+    inlineError.value = MESSAGES.openFolderFailed;
   }
 }
 </script>

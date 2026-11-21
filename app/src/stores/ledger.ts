@@ -227,7 +227,7 @@ export const useLedgerStore = defineStore('ledger', () => {
   return {
     ready, dbError, categories, viewMonth, period, selectedDate, activeTab, data, today, toast, saving, focusTick, focusPending,
     sortedCategories, dayCells, summary,
-    init, reload, refreshCategories, goPrev, goNext, goToday, select, setTab, refreshToday,
+    init, reload, failDb, refreshCategories, goPrev, goNext, goToday, select, setTab, refreshToday,
     onStartDayChanged, addExpense, updateExpense, deleteExpense, setNoExpense, saveNote, clearToast,
     requestDescriptionFocus,
   };

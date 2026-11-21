@@ -3,7 +3,7 @@ import { flushPromises, mount } from '@vue/test-utils';
 import { defineComponent } from 'vue';
 import { createPinia, setActivePinia } from 'pinia';
 
-const h = vi.hoisted(() => ({ menu: null as ((id: string) => void) | null, unlisten: vi.fn(), open: vi.fn() }));
+const h = vi.hoisted(() => ({ menu: null as ((id: string) => void) | null, unlisten: vi.fn(), open: vi.fn(), load: vi.fn() }));
 vi.mock('@/api/commands', async (orig) => ({
   ...(await orig<object>()),
   onMenu: vi.fn(async (fn: (id: string) => void) => {
@@ -11,6 +11,7 @@ vi.mock('@/api/commands', async (orig) => ({
     return h.unlisten;
   }),
   openBackupFolder: h.open,
+  loadPeriod: h.load,
 }));
 
 import App from '@/App.vue';
@@ -42,6 +43,8 @@ beforeEach(() => {
   h.menu = null;
   h.unlisten.mockClear();
   h.open.mockReset();
+  h.load.mockReset();
+  h.load.mockResolvedValue({ expenses: [], noExpenseDays: [], notes: [], fixedAmounts: [] });
 });
 afterEach(() => vi.restoreAllMocks());
 
@@ -96,7 +99,57 @@ describe('메뉴 id → 동작', () => {
     h.open.mockRejectedValue(new Error('x'));
     h.menu!('open-backups');
     await flushPromises();
-    expect(ledger.toast).toBe(MESSAGES.saveFailed);
+    expect(ledger.toast).toBe(MESSAGES.openFolderFailed);
+  });
+
+  it('dbError 중에는 메뉴를 무시', async () => {
+    const { ledger, goPrev, w } = setupApp();
+    await flushPromises();
+    ledger.dbError = 'locked';
+    h.menu!('prev-month');
+    h.menu!('settings');
+    h.menu!('import');
+    await flushPromises();
+    expect(goPrev).not.toHaveBeenCalled();
+    expect(w.find('.settings').exists()).toBe(false);
+  });
+
+  describe('고정 지출 저장 후 새로고침 실패', () => {
+    async function saved() {
+      setActivePinia(createPinia());
+      const ledger = useLedgerStore();
+      vi.spyOn(ledger, 'init').mockResolvedValue();
+      const w = mount(App, {
+        global: {
+          stubs: {
+            ...stubs,
+            MainLayout: { name: 'MainLayout', emits: ['open-fixed'], template: '<div />' },
+            FixedExpenseSheet: { name: 'FixedExpenseSheet', emits: ['saved', 'close'], template: '<div class="fixed" />' },
+          },
+        },
+        attachTo: document.body,
+      });
+      await flushPromises();
+      w.findComponent({ name: 'MainLayout' }).vm.$emit('open-fixed');
+      await flushPromises();
+      w.findComponent({ name: 'FixedExpenseSheet' }).vm.$emit('saved');
+      await flushPromises();
+      return ledger;
+    }
+
+    it('일반 오류 → loadFailed 토스트', async () => {
+      h.load.mockRejectedValue(new Error('boom'));
+      const ledger = await saved();
+      expect(ledger.toast).toBe(MESSAGES.loadFailed);
+      expect(ledger.dbError).toBeNull();
+    });
+
+    it('db_unavailable → 오류 화면 상태', async () => {
+      h.load.mockRejectedValue(Object.assign(new Error('locked'), { code: 'db_unavailable' }));
+      const ledger = await saved();
+      expect(ledger.dbError).toBe('locked');
+      expect(ledger.toast).toBeNull();
+    });
   });
 
   it('대화상자가 열려 있으면 무시, 언마운트하면 해제', async () => {

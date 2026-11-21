@@ -19,7 +19,12 @@ const settingsTab = ref<'general' | 'categories' | 'data'>('general');
 const settingsAction = ref<'import' | 'export' | null>(null);
 async function onFixedSaved() {
   fixedOpen.value = false;
-  await ledger.reload();
+  try {
+    await ledger.reload();
+  } catch (e) {
+    // db_unavailable은 스토어가 오류 화면으로 보낸다. 그 외에는 토스트로 알린다.
+    if (!ledger.failDb(e)) ledger.toast = MESSAGES.loadFailed;
+  }
 }
 
 function openSettings(tab: 'general' | 'categories' | 'data', action: 'import' | 'export' | null) {
@@ -32,7 +37,7 @@ function closeSettings() {
   settingsAction.value = null;
 }
 async function onMenuId(id: string) {
-  if (dialogOpen()) return;
+  if (ledger.dbError !== null || dialogOpen()) return;
   switch (id) {
     case 'prev-month':
       await ledger.goPrev();
@@ -63,7 +68,7 @@ async function onMenuId(id: string) {
       try {
         await openBackupFolder();
       } catch {
-        ledger.toast = MESSAGES.saveFailed;
+        ledger.toast = MESSAGES.openFolderFailed;
       }
       break;
   }
