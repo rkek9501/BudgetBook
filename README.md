@@ -50,10 +50,38 @@
 
 | 용도 | 환경 | 필요한 도구 |
 |---|---|---|
-| 개발 | Windows 11 | Node.js LTS, Rust(rustup), Visual Studio C++ Build Tools, WebView2(Windows 11 기본 포함) |
+| 개발 | Windows 11 | Node.js 22 이상 LTS, Rust(rustup), Visual Studio C++ Build Tools, WebView2(Windows 11 기본 포함) |
 | Mac 빌드·확인 | Apple Silicon, macOS 15 이상 | Xcode Command Line Tools, Rust, Node.js 22 이상 LTS |
 
-본인용 앱이라 서명·공증 없이 Mac에서 직접 빌드합니다. Windows에서는 Mac 앱을 빌드할 수 없습니다. 순서는 [Mac 빌드·설치 가이드](docs/mac-build.md)를 보세요.
+본인용 앱이라 서명·공증 없이 Mac에서 직접 빌드합니다. Windows에서는 Mac 앱을 빌드할 수 없습니다.
+
+### Windows 개발 환경 설치 (처음 한 번)
+
+PowerShell에서 실행합니다.
+
+```powershell
+winget install -e --id OpenJS.NodeJS.LTS
+winget install -e --id Rustlang.Rustup
+winget install -e --id Microsoft.VisualStudio.2022.BuildTools --override "--quiet --wait --norestart --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended"
+```
+
+- **Visual Studio Build Tools:** Rust가 Windows에서 링크할 때 필요한 C++ 도구입니다. 용량이 수 GB라 설치에 시간이 걸립니다.
+- **WebView2:** Windows 11에는 기본으로 들어 있습니다. 없으면 `winget install -e --id Microsoft.EdgeWebView2Runtime`으로 설치합니다.
+- **설치 확인:** 터미널을 새로 열고 `node --version`과 `cargo --version`을 실행합니다. `cargo`가 없다고 나오면 `rustup default stable`을 실행합니다.
+- **개발 실행:** 아래 [명령어](#명령어)의 `npm ci`와 `npm run tauri dev`를 실행합니다. 첫 실행은 Rust 컴파일 때문에 몇 분 걸립니다.
+
+### Mac 빌드 환경 설치 (처음 한 번)
+
+터미널에서 실행합니다.
+
+```bash
+xcode-select --install                                          # Xcode Command Line Tools (Xcode 앱 전체는 필요 없음)
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh  # Rust. 설치 후 터미널을 새로 연다
+brew install node                                               # Node.js. Homebrew가 없으면 nodejs.org의 LTS 설치 파일
+```
+
+- **설치 확인:** `xcode-select -p`, `cargo --version`, `node --version`을 실행합니다. Node는 22 이상이어야 합니다.
+- **다음 단계:** 코드 옮기기, 빌드, 설치, 업데이트는 [Mac 빌드·설치 가이드](docs/mac-build.md)를 따릅니다.
 
 ## 명령어
 
