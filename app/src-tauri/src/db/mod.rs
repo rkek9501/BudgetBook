@@ -24,7 +24,8 @@ pub fn open(path: &Path) -> AppResult<Connection> {
         flags |= OpenFlags::SQLITE_OPEN_CREATE;
     }
     let mut conn = Connection::open_with_flags(path, flags).map_err(unavailable)?;
-    conn.pragma_update(None, "foreign_keys", "ON").map_err(unavailable)?;
+    conn.pragma_update(None, "foreign_keys", "ON")
+        .map_err(unavailable)?;
     let mode: String = conn
         .query_row("PRAGMA journal_mode = WAL", [], |r| r.get(0))
         .map_err(unavailable)?;
@@ -63,7 +64,9 @@ mod tests {
     #[test]
     fn fresh_db_migrates_to_v1() {
         let (_d, conn) = test_db();
-        let v: i64 = conn.query_row("PRAGMA user_version", [], |r| r.get(0)).unwrap();
+        let v: i64 = conn
+            .query_row("PRAGMA user_version", [], |r| r.get(0))
+            .unwrap();
         assert_eq!(v, 1);
         let n: i64 = conn
             .query_row(
@@ -80,9 +83,13 @@ mod tests {
     #[test]
     fn foreign_keys_and_wal_enabled() {
         let (_d, conn) = test_db();
-        let fk: i64 = conn.query_row("PRAGMA foreign_keys", [], |r| r.get(0)).unwrap();
+        let fk: i64 = conn
+            .query_row("PRAGMA foreign_keys", [], |r| r.get(0))
+            .unwrap();
         assert_eq!(fk, 1);
-        let jm: String = conn.query_row("PRAGMA journal_mode", [], |r| r.get(0)).unwrap();
+        let jm: String = conn
+            .query_row("PRAGMA journal_mode", [], |r| r.get(0))
+            .unwrap();
         assert_eq!(jm, "wal");
     }
 
@@ -92,12 +99,17 @@ mod tests {
         let path = dir.path().join("a.db");
         {
             let conn = open(&path).unwrap();
-            conn.execute("INSERT INTO settings(key, value) VALUES ('theme', 'ocean')", [])
-                .unwrap();
+            conn.execute(
+                "INSERT INTO settings(key, value) VALUES ('theme', 'ocean')",
+                [],
+            )
+            .unwrap();
         }
         let conn = open(&path).unwrap();
         let v: String = conn
-            .query_row("SELECT value FROM settings WHERE key='theme'", [], |r| r.get(0))
+            .query_row("SELECT value FROM settings WHERE key='theme'", [], |r| {
+                r.get(0)
+            })
             .unwrap();
         assert_eq!(v, "ocean");
     }
@@ -134,7 +146,8 @@ mod tests {
             )
             .unwrap();
         }
-        conn.execute("DELETE FROM categories WHERE id = 3", []).unwrap();
+        conn.execute("DELETE FROM categories WHERE id = 3", [])
+            .unwrap();
         conn.execute(
             "INSERT INTO categories(name,color,created_at,updated_at) VALUES ('d','#000000','t','t')",
             [],

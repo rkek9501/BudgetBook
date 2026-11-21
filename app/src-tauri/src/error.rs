@@ -69,6 +69,9 @@ mod tests {
     #[test]
     fn serializes_code_and_message() {
         let v = serde_json::to_value(AppError::NotFound("none".into())).unwrap();
-        assert_eq!(v, serde_json::json!({"code": "not_found", "message": "none"}));
+        assert_eq!(
+            v,
+            serde_json::json!({"code": "not_found", "message": "none"})
+        );
     }
 }

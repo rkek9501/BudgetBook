@@ -14,5 +14,8 @@ pub fn now_kst_iso() -> String {
 
 /// `20261116`
 pub fn today_kst_compact() -> String {
-    Utc::now().with_timezone(&kst()).format("%Y%m%d").to_string()
+    Utc::now()
+        .with_timezone(&kst())
+        .format("%Y%m%d")
+        .to_string()
 }

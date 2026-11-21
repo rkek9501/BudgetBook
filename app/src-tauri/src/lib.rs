@@ -1,12 +1,12 @@
-pub mod error;
-pub mod time;
-pub mod models;
-pub mod db;
-pub mod repo;
 pub mod backup;
-pub mod transfer;
 pub mod commands;
+pub mod db;
+pub mod error;
 pub mod menu;
+pub mod models;
+pub mod repo;
+pub mod time;
+pub mod transfer;
 
 use std::fs;
 use tauri::Manager;
