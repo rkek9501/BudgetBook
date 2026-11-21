@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { nextTick, onMounted, ref, watch } from 'vue';
+import { trapTab } from '@/composables/useFocusTrap';
 
 const props = withDefaults(
   defineProps<{
@@ -14,7 +15,7 @@ const props = withDefaults(
 const emit = defineEmits<{ (e: 'confirm'): void; (e: 'cancel'): void }>();
 
 const cancelBtn = ref<HTMLButtonElement | null>(null);
-const confirmBtn = ref<HTMLButtonElement | null>(null);
+const dialogEl = ref<HTMLElement | null>(null);
 let previous: HTMLElement | null = null;
 
 async function onOpen() {
@@ -43,32 +44,18 @@ function onKeydown(e: KeyboardEvent) {
     e.stopPropagation();
     emit('cancel');
   } else if (e.key === 'Tab') {
-    const a = cancelBtn.value;
-    const b = confirmBtn.value;
-    if (!a || !b) return;
-    const active = document.activeElement;
-    if (e.shiftKey && active === a) {
-      e.preventDefault();
-      b.focus();
-    } else if (!e.shiftKey && active === b) {
-      e.preventDefault();
-      a.focus();
-    } else if (active !== a && active !== b) {
-      e.preventDefault();
-      a.focus();
-    }
+    trapTab(e, dialogEl.value);
   }
 }
 </script>
 
 <template>
   <div v-if="open" class="overlay" @click.self="emit('cancel')" @keydown="onKeydown">
-    <div class="dialog" role="alertdialog" aria-modal="true" aria-label="확인">
+    <div ref="dialogEl" class="dialog" role="alertdialog" aria-modal="true" aria-label="확인">
       <p class="message">{{ message }}</p>
       <div class="actions">
         <button ref="cancelBtn" type="button" class="btn" @click="emit('cancel')">{{ cancelLabel }}</button>
         <button
-          ref="confirmBtn"
           type="button"
           class="btn primary"
           :class="{ danger }"
@@ -89,7 +76,7 @@ function onKeydown(e: KeyboardEvent) {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(0, 0, 0, 0.35);
+  background: var(--overlay);
 }
 .dialog {
   min-width: 260px;

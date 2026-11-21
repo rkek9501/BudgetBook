@@ -56,4 +56,20 @@ describe('CategoryDeleteDialog', () => {
     expect(document.activeElement).toBe(document.querySelector('.dialog select'));
     w.unmount();
   });
+
+  it('select에서 Tab → 다음 버튼, 처음에서 Shift+Tab → 끝으로(밖으로 나가지 않음)', async () => {
+    const w = mountInSheet(() => {});
+    await nextTick();
+    await nextTick();
+    const select = document.querySelector<HTMLElement>('.dialog select')!;
+    const buttons = Array.from(document.querySelectorAll<HTMLElement>('.dialog button'));
+    select.focus();
+    key(select, 'Tab');
+    expect(document.activeElement).toBe(buttons[0]);
+    select.focus();
+    key(select, 'Tab', true);
+    expect(document.activeElement).toBe(buttons[buttons.length - 1]);
+    expect(document.querySelector('.dialog')!.contains(document.activeElement)).toBe(true);
+    w.unmount();
+  });
 });

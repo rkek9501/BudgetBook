@@ -52,4 +52,40 @@ describe('Sheet', () => {
     expect(document.activeElement).toBe(opener);
     w.unmount();
   });
+
+  it('Esc는 IME 조합 중에는 무시', () => {
+    const w = mk();
+    document.querySelector('[role="dialog"]')!.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Escape', isComposing: true, bubbles: true }),
+    );
+    expect(w.emitted('close')).toBeUndefined();
+    w.unmount();
+  });
+
+  it('마지막 텍스트 입력에서 Tab → 시트 안의 다음 요소로(밖으로 나가지 않음), Shift+Tab은 처음에서 끝으로 순환', () => {
+    const outside = document.createElement('input');
+    document.body.appendChild(outside);
+    const w = mount(Sheet, {
+      props: { open: true, title: '제목' },
+      slots: { default: '<button id="b0">b0</button><input id="a" /><input id="z" /><button id="b1">b1</button>' },
+      attachTo: document.body,
+    });
+    const d = document.querySelector('[role="dialog"]') as HTMLElement;
+    const tab = (shiftKey = false) => {
+      const e = new KeyboardEvent('keydown', { key: 'Tab', shiftKey, bubbles: true, cancelable: true });
+      (document.activeElement as HTMLElement).dispatchEvent(e);
+      return e;
+    };
+    (document.getElementById('z') as HTMLElement).focus();
+    const e = tab();
+    expect(e.defaultPrevented).toBe(true);
+    expect(document.activeElement).toBe(document.getElementById('b1'));
+    tab();
+    expect(document.activeElement).toBe(document.getElementById('b0'));
+    tab(true);
+    expect(document.activeElement).toBe(document.getElementById('b1'));
+    expect(d.contains(document.activeElement)).toBe(true);
+    expect(document.activeElement).not.toBe(outside);
+    w.unmount();
+  });
 });

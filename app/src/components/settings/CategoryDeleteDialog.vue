@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
+import { trapTab } from '@/composables/useFocusTrap';
 import type { Category } from '@/domain/types';
 
 const props = defineProps<{
@@ -29,20 +30,7 @@ function onKeydown(e: KeyboardEvent) {
     e.stopPropagation();
     emit('cancel');
   } else if (e.key === 'Tab') {
-    const list = Array.from(
-      dialog.value?.querySelectorAll<HTMLElement>('button:not([disabled]), select:not([disabled])') ?? [],
-    );
-    if (!list.length) return;
-    const first = list[0];
-    const last = list[list.length - 1];
-    const active = document.activeElement;
-    if (!dialog.value?.contains(active) || (e.shiftKey && active === first)) {
-      e.preventDefault();
-      (e.shiftKey ? last : first).focus();
-    } else if (!e.shiftKey && active === last) {
-      e.preventDefault();
-      first.focus();
-    }
+    trapTab(e, dialog.value);
   }
 }
 </script>

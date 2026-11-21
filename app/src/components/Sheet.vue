@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { focusablesIn, trapTab } from '@/composables/useFocusTrap';
+import { isImeKey } from '@/composables/useAmountInput';
 
 const props = defineProps<{ open: boolean; title: string; busy?: boolean }>();
 const emit = defineEmits<{ (e: 'close'): void }>();
@@ -8,12 +10,7 @@ const dialog = ref<HTMLElement | null>(null);
 const titleId = `sheet-title-${Math.random().toString(36).slice(2, 8)}`;
 let previous: HTMLElement | null = null;
 
-const FOCUSABLE =
-  'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [href], [tabindex]:not([tabindex="-1"])';
-
-function focusables(): HTMLElement[] {
-  return Array.from(dialog.value?.querySelectorAll<HTMLElement>(FOCUSABLE) ?? []);
-}
+const focusables = () => focusablesIn(dialog.value);
 
 async function onOpen() {
   previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
@@ -44,31 +41,14 @@ onBeforeUnmount(() => {
 function onKeydown(e: KeyboardEvent) {
   // 안쪽 확인 대화상자가 이미 처리한 키는 무시한다.
   if (e.defaultPrevented) return;
+  if (e.key === 'Escape' && isImeKey(e)) return;
   if (e.key === 'Escape' && props.busy) {
     e.preventDefault();
   } else if (e.key === 'Escape') {
     e.preventDefault();
     emit('close');
   } else if (e.key === 'Tab') {
-    const list = focusables();
-    if (list.length === 0) {
-      e.preventDefault();
-      dialog.value?.focus();
-      return;
-    }
-    const first = list[0];
-    const last = list[list.length - 1];
-    const active = document.activeElement;
-    if (!dialog.value?.contains(active)) {
-      e.preventDefault();
-      first.focus();
-    } else if (e.shiftKey && (active === first || active === dialog.value)) {
-      e.preventDefault();
-      last.focus();
-    } else if (!e.shiftKey && active === last) {
-      e.preventDefault();
-      first.focus();
-    }
+    trapTab(e, dialog.value);
   }
 }
 </script>
