@@ -6,7 +6,7 @@ import type { BackupInfo } from '@/api/commands';
 import ConfirmDialog from '@/components/ConfirmDialog.vue';
 
 withDefaults(defineProps<{ showFolderButton?: boolean }>(), { showFolderButton: true });
-const emit = defineEmits<{ (e: 'restored'): void }>();
+const emit = defineEmits<{ (e: 'restored'): void; (e: 'db-lost'): void }>();
 
 const backups = ref<BackupInfo[]>([]);
 const loaded = ref(false);
@@ -41,7 +41,19 @@ async function restore() {
     ok = true;
   } catch {
     chosen.value = null;
-    error.value = '복원하지 못했어요. 지금 데이터는 그대로예요.';
+    // 복원이 실패했는데 원래 DB도 다시 열 수 없으면 "그대로"가 아니다. 오류 화면으로 보낸다.
+    let dbOpen = true;
+    try {
+      dbOpen = (await api.dbStatus()).ok;
+    } catch {
+      // 상태를 못 읽으면 기존 문구를 유지한다.
+    }
+    if (dbOpen) {
+      error.value = '복원하지 못했어요. 지금 데이터는 그대로예요.';
+    } else {
+      error.value = '복원하지 못했어요.';
+      emit('db-lost');
+    }
   } finally {
     busy.value = false;
   }

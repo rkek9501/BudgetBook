@@ -8,6 +8,7 @@ vi.mock('@/api/commands', () => ({
   exportJson: vi.fn(),
   listBackups: vi.fn(),
   restoreBackup: vi.fn(),
+  dbStatus: vi.fn(),
   openBackupFolder: vi.fn(),
 }));
 vi.mock('@tauri-apps/plugin-dialog', () => ({ open: vi.fn(), save: vi.fn() }));
@@ -166,6 +167,17 @@ describe('DataTab', () => {
     await btn(w, '되돌리기')!.trigger('click');
     await flushPromises();
     expect(api.restoreBackup).toHaveBeenCalledWith('a.db');
+    expect(init).toHaveBeenCalledTimes(1);
+  });
+
+  it('복원 실패 후 DB를 다시 열 수 없으면 init으로 오류 화면 표시', async () => {
+    vi.mocked(api.restoreBackup).mockRejectedValue(new Error('x'));
+    vi.mocked(api.dbStatus).mockResolvedValue({ ok: false, error: 'damaged', backupError: null });
+    const { w, init } = setup();
+    await flushPromises();
+    await w.find('[data-testid="backup-restore"]').trigger('click');
+    await btn(w, '되돌리기')!.trigger('click');
+    await flushPromises();
     expect(init).toHaveBeenCalledTimes(1);
   });
 

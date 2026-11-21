@@ -144,7 +144,7 @@ async function onRestored() {
 
     <section class="block">
       <h3>자동 백업</h3>
-      <BackupList :key="backupKey" @restored="onRestored" />
+      <BackupList :key="backupKey" @restored="onRestored" @db-lost="onRestored" />
     </section>
 
     <ConfirmDialog
