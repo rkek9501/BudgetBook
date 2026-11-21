@@ -23,7 +23,7 @@ let dirty = false;
 let timer: ReturnType<typeof setTimeout> | null = null;
 let maxTimer: ReturnType<typeof setTimeout> | null = null;
 // 저장을 순서대로 이어 붙여 마지막 입력이 항상 마지막에 저장되게 한다.
-let chain: Promise<unknown> | null = null;
+let chain: Promise<boolean> | null = null;
 
 function clearTimers() {
   if (timer !== null) {
@@ -37,21 +37,23 @@ function clearTimers() {
 }
 
 // 대기 중인 저장이 모두 끝나면 이행되는 Promise를 돌려준다(창 닫기 전 기다리는 용도).
-function flush(): Promise<unknown> {
+// 저장할 것이 없거나 저장에 성공하면 true, 마지막 저장이 실패하면 false.
+function flush(): Promise<boolean> {
   clearTimers();
-  if (!dirty || expandedId.value === null) return chain ?? Promise.resolve();
+  if (!dirty || expandedId.value === null) return chain ?? Promise.resolve(true);
   dirty = false;
   const id = expandedId.value;
   const text = draft.value;
   const month = memoMonth;
-  const run = async () => {
+  const run = async (): Promise<boolean> => {
     const ok = await ledger.saveNote(id, text, month).catch(() => false);
     // 실패했고 그사이 새 입력이 없으면 다음 저장 시점에 같은 글을 다시 보낸다.
     if (!ok && !dirty && expandedId.value === id && memoMonth === month && draft.value === text) {
       dirty = true;
     }
+    return ok;
   };
-  const next: Promise<unknown> = chain === null ? run() : chain.then(run);
+  const next: Promise<boolean> = chain === null ? run() : chain.then(run);
   chain = next;
   void next.then(() => {
     if (chain === next) chain = null;

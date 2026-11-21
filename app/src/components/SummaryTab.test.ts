@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { flushPromises, mount } from '@vue/test-utils';
+import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 vi.mock('@/api/commands', async (orig) => ({
   ...(await orig<object>()),
@@ -36,6 +36,8 @@ function setup(empty = false) {
   const w = mount(SummaryTab, { attachTo: document.body });
   return { ledger, w, save };
 }
+
+enableAutoUnmount(afterEach);
 
 beforeEach(() => {
   document.body.innerHTML = '';
@@ -132,6 +134,20 @@ describe('SummaryTab', () => {
     w.unmount();
     await flushAll(2000);
     expect(save).toHaveBeenCalledTimes(1);
+  });
+
+  it('저장이 실패하면 flushAll이 ok=false, 성공하면 true', async () => {
+    const { w, save } = setup();
+    await w.findAll('button.category-row')[0].trigger('click');
+    await w.find('textarea').setValue('실패할 글');
+    save.mockResolvedValueOnce(false);
+    await expect(flushAll(2000)).resolves.toEqual({ ok: false, timedOut: false });
+    // 실패한 글은 다시 미저장 상태라 다음 시도에서 다시 보내고, 이번엔 성공한다
+    await expect(flushAll(2000)).resolves.toEqual({ ok: true, timedOut: false });
+    expect(save).toHaveBeenCalledTimes(2);
+    expect(save).toHaveBeenLastCalledWith(1, '실패할 글', '2026-11');
+    await expect(flushAll(2000)).resolves.toEqual({ ok: true, timedOut: false });
+    expect(save).toHaveBeenCalledTimes(2);
   });
 
   it('접으면 대기 중인 저장을 즉시 실행', async () => {

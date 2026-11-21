@@ -13,7 +13,7 @@ describe('useBeforeClose', () => {
     const un2 = registerBeforeClose(() => {
       done.push('b');
     });
-    await flushAll(2000);
+    await expect(flushAll(2000)).resolves.toEqual({ ok: true, timedOut: false });
     expect(done.sort()).toEqual(['a', 'b']);
     un1();
     un2();
@@ -26,14 +26,23 @@ describe('useBeforeClose', () => {
     vi.useFakeTimers();
     const un = registerBeforeClose(() => new Promise<void>(() => {}));
     let finished = false;
-    const p = flushAll(2000).then(() => {
+    let result: unknown;
+    const p = flushAll(2000).then((r) => {
       finished = true;
+      result = r;
     });
     await vi.advanceTimersByTimeAsync(1999);
     expect(finished).toBe(false);
     await vi.advanceTimersByTimeAsync(1);
     await p;
     expect(finished).toBe(true);
+    expect(result).toEqual({ ok: false, timedOut: true });
+    un();
+  });
+
+  it('false를 돌려주면 실패로 본다', async () => {
+    const un = registerBeforeClose(() => false);
+    await expect(flushAll(2000)).resolves.toEqual({ ok: false, timedOut: false });
     un();
   });
 
@@ -44,7 +53,7 @@ describe('useBeforeClose', () => {
       throw new Error('sync');
     });
     const u3 = registerBeforeClose(async () => ok());
-    await expect(flushAll(2000)).resolves.toBeUndefined();
+    await expect(flushAll(2000)).resolves.toEqual({ ok: false, timedOut: false });
     expect(ok).toHaveBeenCalled();
     u1();
     u2();

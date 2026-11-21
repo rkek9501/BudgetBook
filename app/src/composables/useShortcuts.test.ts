@@ -8,12 +8,12 @@ const h = vi.hoisted(() => ({
   unlisten: vi.fn(),
   open: vi.fn(),
   load: vi.fn(),
-  closeHandler: null as (() => Promise<void>) | null,
+  closeHandler: null as ((e: { preventDefault: () => void }) => Promise<void>) | null,
   unlistenClose: vi.fn(),
 }));
 vi.mock('@tauri-apps/api/window', () => ({
   getCurrentWindow: () => ({
-    onCloseRequested: async (fn: () => Promise<void>) => {
+    onCloseRequested: async (fn: (e: { preventDefault: () => void }) => Promise<void>) => {
       h.closeHandler = fn;
       return h.unlistenClose;
     },
@@ -76,11 +76,71 @@ describe('창 닫기 전 저장', () => {
       await Promise.resolve();
       saved = true;
     });
-    await h.closeHandler!();
+    const ev = { preventDefault: vi.fn() };
+    await h.closeHandler!(ev);
     expect(saved).toBe(true);
+    expect(ev.preventDefault).not.toHaveBeenCalled();
     un();
     w.unmount();
     expect(h.unlistenClose).toHaveBeenCalled();
+  });
+});
+
+describe('창 닫기: 저장 실패·시간 초과', () => {
+  afterEach(() => vi.useRealTimers());
+
+  it('저장 실패: 첫 닫기는 막고 알림, 두 번째는 닫는다', async () => {
+    const { ledger } = setupApp();
+    await flushPromises();
+    const un = registerBeforeClose(() => false);
+    const e1 = { preventDefault: vi.fn() };
+    await h.closeHandler!(e1);
+    expect(e1.preventDefault).toHaveBeenCalledTimes(1);
+    expect(ledger.toast).toBe(MESSAGES.memoCloseFailed);
+    ledger.clearToast();
+    const e2 = { preventDefault: vi.fn() };
+    await h.closeHandler!(e2);
+    expect(e2.preventDefault).not.toHaveBeenCalled();
+    expect(ledger.toast).toBeNull();
+    un();
+  });
+
+  it('시간 초과도 첫 닫기만 막는다', async () => {
+    const { ledger } = setupApp();
+    await flushPromises();
+    vi.useFakeTimers();
+    const un = registerBeforeClose(() => new Promise<void>(() => {}));
+    const e1 = { preventDefault: vi.fn() };
+    const p1 = h.closeHandler!(e1);
+    await vi.advanceTimersByTimeAsync(2000);
+    await p1;
+    expect(e1.preventDefault).toHaveBeenCalledTimes(1);
+    expect(ledger.toast).toBe(MESSAGES.memoCloseFailed);
+    const e2 = { preventDefault: vi.fn() };
+    const p2 = h.closeHandler!(e2);
+    await vi.advanceTimersByTimeAsync(2000);
+    await p2;
+    expect(e2.preventDefault).not.toHaveBeenCalled();
+    un();
+  });
+
+  it('실패 뒤 정상 저장되면 다시 첫 실패부터 막는다', async () => {
+    setupApp();
+    await flushPromises();
+    let ok = false;
+    const un = registerBeforeClose(() => ok);
+    const e1 = { preventDefault: vi.fn() };
+    await h.closeHandler!(e1);
+    expect(e1.preventDefault).toHaveBeenCalledTimes(1);
+    ok = true;
+    const e2 = { preventDefault: vi.fn() };
+    await h.closeHandler!(e2);
+    expect(e2.preventDefault).not.toHaveBeenCalled();
+    ok = false;
+    const e3 = { preventDefault: vi.fn() };
+    await h.closeHandler!(e3);
+    expect(e3.preventDefault).toHaveBeenCalledTimes(1);
+    un();
   });
 });
 

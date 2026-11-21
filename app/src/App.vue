@@ -77,6 +77,7 @@ async function onMenuId(id: string) {
 }
 
 let unlisten: (() => void) | null = null;
+let closeBlocked = false;
 let unlistenClose: (() => void) | null = null;
 let disposed = false;
 onMounted(() => {
@@ -84,8 +85,18 @@ onMounted(() => {
   // 창을 닫기 전에 입력 중인 메모 등을 저장한다. preventDefault를 부르지 않으므로 기다린 뒤 그대로 닫힌다.
   try {
     void getCurrentWindow()
-      .onCloseRequested(async () => {
-        await flushAll(2000);
+      .onCloseRequested(async (event) => {
+        const r = await flushAll(2000);
+        if (r.ok) {
+          closeBlocked = false;
+          return;
+        }
+        // 저장 실패·시간 초과: 한 번만 막고 알린다. 다음 닫기는 결과와 상관없이 닫는다.
+        if (!closeBlocked) {
+          closeBlocked = true;
+          event.preventDefault();
+          ledger.toast = MESSAGES.memoCloseFailed;
+        }
       })
       .then((u) => {
         if (disposed) u();
