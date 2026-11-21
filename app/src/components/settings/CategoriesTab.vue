@@ -18,6 +18,8 @@ const newColor = ref(PRESETS[0].color);
 const editError = ref('');
 const addError = ref('');
 const busy = ref(false);
+const editColorBad = ref(false);
+const newColorBad = ref(false);
 
 const selected = computed(() => ledger.sortedCategories.find((c) => c.id === selectedId.value) ?? null);
 
@@ -28,6 +30,7 @@ function select(id: number) {
   editName.value = c.name;
   editColor.value = c.color;
   editError.value = '';
+  editColorBad.value = false;
 }
 
 // 선택한 카테고리가 목록에서 사라지면 편집 영역을 닫는다.
@@ -39,7 +42,6 @@ function messageFor(e: unknown): string {
   const code = e instanceof api.ApiError ? e.code : '';
   if (code === 'duplicate_name') return MESSAGES.categoryDuplicate;
   if (code === 'last_category') return MESSAGES.lastCategory;
-  if (code === 'invalid_input') return MESSAGES.colorInvalid;
   return MESSAGES.saveFailed;
 }
 
@@ -82,6 +84,10 @@ async function save() {
     editError.value = MESSAGES.categoryNameRequired;
     return;
   }
+  if (editColorBad.value) {
+    editError.value = MESSAGES.colorInvalid;
+    return;
+  }
   await run(
     (m) => (editError.value = m),
     async () => {
@@ -96,6 +102,10 @@ async function add() {
     addError.value = MESSAGES.categoryNameRequired;
     return;
   }
+  if (newColorBad.value) {
+    addError.value = MESSAGES.colorInvalid;
+    return;
+  }
   const ok = await run(
     (m) => (addError.value = m),
     async () => {
@@ -105,6 +115,7 @@ async function add() {
   if (ok) {
     newName.value = '';
     newColor.value = PRESETS[0].color;
+    newColorBad.value = false;
   }
 }
 
@@ -166,7 +177,7 @@ const targets = computed(() => ledger.sortedCategories.filter((c) => c.id !== se
 
     <section v-if="selected" class="edit-area" aria-label="카테고리 편집">
       <input v-model="editName" class="name-input edit-name" type="text" aria-label="카테고리 이름" />
-      <ColorPicker v-model="editColor" />
+      <ColorPicker v-model="editColor" @invalid="editColorBad = $event" />
       <div class="actions">
         <button type="button" class="btn danger" :disabled="busy" @click="startDelete">삭제</button>
         <button type="button" class="btn primary" :disabled="busy" @click="save">저장</button>
@@ -177,7 +188,7 @@ const targets = computed(() => ledger.sortedCategories.filter((c) => c.id !== se
     <section class="add-area" aria-label="카테고리 추가">
       <h3>새 카테고리</h3>
       <input v-model="newName" class="name-input add-name" type="text" aria-label="새 카테고리 이름" />
-      <ColorPicker v-model="newColor" />
+      <ColorPicker v-model="newColor" @invalid="newColorBad = $event" />
       <div class="actions">
         <button type="button" class="btn primary" :disabled="busy" @click="add">추가</button>
       </div>

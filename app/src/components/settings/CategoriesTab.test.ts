@@ -106,6 +106,35 @@ describe('CategoriesTab', () => {
     w.unmount();
   });
 
+  it('서버 invalid_input은 colorInvalid가 아니라 saveFailed', async () => {
+    const { w } = setup();
+    vi.mocked(api.updateCategory).mockRejectedValue(new api.ApiError('invalid_input', ''));
+    vi.mocked(api.categoryUsage).mockResolvedValue({ expenseCount: 0, noteCount: 0 });
+    vi.mocked(api.deleteCategory).mockRejectedValue(new api.ApiError('invalid_input', ''));
+    await names(w)[0].trigger('click');
+    await w.findAll('button').find((b) => b.text() === '저장')!.trigger('click');
+    await flushPromises();
+    expect(w.find('.edit-error').text()).toBe(MESSAGES.saveFailed);
+    await w.findAll('button').find((b) => b.text() === '삭제')!.trigger('click');
+    await flushPromises();
+    const del = qa('button').filter((b) => b.textContent?.trim() === '삭제');
+    del[del.length - 1].click();
+    await flushPromises();
+    expect(w.find('.edit-error').text()).toBe(MESSAGES.saveFailed);
+    w.unmount();
+  });
+
+  it('HEX가 무효이면 저장 요청 없이 colorInvalid', async () => {
+    const { w } = setup();
+    await names(w)[0].trigger('click');
+    await w.find('.edit-area .hex-input').setValue('zz');
+    await w.findAll('button').find((b) => b.text() === '저장')!.trigger('click');
+    await flushPromises();
+    expect(api.updateCategory).not.toHaveBeenCalled();
+    expect(w.find('.edit-error').text()).toBe(MESSAGES.colorInvalid);
+    w.unmount();
+  });
+
   it('마지막 카테고리 삭제 → lastCategory 문구', async () => {
     const { w } = setup();
     vi.mocked(api.categoryUsage).mockResolvedValue({ expenseCount: 0, noteCount: 0 });

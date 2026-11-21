@@ -4,7 +4,10 @@ import { normalizeHex, PALETTE, PRESETS } from '@/domain/categories';
 import { MESSAGES } from '@/domain/messages';
 
 const props = defineProps<{ modelValue: string }>();
-const emit = defineEmits<{ (e: 'update:modelValue', v: string): void }>();
+const emit = defineEmits<{
+  (e: 'update:modelValue', v: string): void;
+  (e: 'invalid', v: boolean): void;
+}>();
 
 const text = ref(props.modelValue);
 const invalid = ref(false);
@@ -15,6 +18,7 @@ watch(
     if (normalizeHex(text.value) !== v) {
       text.value = v;
       invalid.value = false;
+      emit('invalid', false);
     }
   },
 );
@@ -26,12 +30,14 @@ function onInput(e: Event) {
   text.value = (e.target as HTMLInputElement).value;
   const n = normalizeHex(text.value);
   invalid.value = n === null;
+  emit('invalid', invalid.value);
   if (n !== null && n !== props.modelValue) emit('update:modelValue', n);
 }
 
 function pick(hex: string) {
   text.value = hex;
   invalid.value = false;
+  emit('invalid', false);
   emit('update:modelValue', hex);
 }
 </script>

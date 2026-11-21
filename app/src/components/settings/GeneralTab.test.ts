@@ -9,7 +9,7 @@ import { MESSAGES } from '@/domain/messages';
 
 vi.mock('@/api/commands', () => ({ setSetting: vi.fn() }));
 
-function setup() {
+function setup(_attach = false) {
   setActivePinia(createPinia());
   const settings = useSettingsStore();
   const ledger = useLedgerStore();
@@ -18,13 +18,26 @@ function setup() {
   const setAppearance = vi.spyOn(settings, 'setAppearance').mockResolvedValue();
   const setTheme = vi.spyOn(settings, 'setTheme').mockResolvedValue();
   const changed = vi.spyOn(ledger, 'onStartDayChanged').mockResolvedValue();
-  const w = mount(GeneralTab);
+  const w = mount(GeneralTab, { attachTo: document.body });
   return { w, settings, setStartDay, setAppearance, setTheme, changed };
 }
 
 beforeEach(() => vi.clearAllMocks());
 
 describe('GeneralTab', () => {
+  it('setAppearance 실패 → 이전 라디오로 복귀하고 saveFailed 표시', async () => {
+    const { w, setAppearance } = setup(true);
+    setAppearance.mockRejectedValueOnce(new Error('x'));
+    const radios = w.findAll('input[type=radio]');
+    expect((radios[0].element as HTMLInputElement).checked).toBe(true);
+    (radios[2].element as HTMLInputElement).checked = true;
+    await radios[2].trigger('change');
+    await flushPromises();
+    expect((radios[0].element as HTMLInputElement).checked).toBe(true);
+    expect((radios[2].element as HTMLInputElement).checked).toBe(false);
+    expect(w.find('.tab-error').text()).toBe(MESSAGES.saveFailed);
+  });
+
   it('시작일 선택 시 미리보기, 적용 시 onStartDayChanged(old,new)', async () => {
     const { w, setStartDay, changed } = setup();
     expect(w.text()).toContain('이번 회계월: 11/1 ~ 11/30');

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
 import type { Category } from '@/domain/types';
 
 const props = defineProps<{
@@ -12,15 +12,48 @@ const props = defineProps<{
 const emit = defineEmits<{ (e: 'confirm', targetId: number): void; (e: 'cancel'): void }>();
 
 const target = ref<number>(props.targets[0]?.id ?? 0);
+const dialog = ref<HTMLElement | null>(null);
+const select = ref<HTMLSelectElement | null>(null);
+let previous: HTMLElement | null = null;
+
+onMounted(async () => {
+  previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  await nextTick();
+  select.value?.focus();
+});
+onBeforeUnmount(() => previous?.focus?.());
+
+function onKeydown(e: KeyboardEvent) {
+  if (e.key === 'Escape') {
+    e.preventDefault();
+    e.stopPropagation();
+    emit('cancel');
+  } else if (e.key === 'Tab') {
+    const list = Array.from(
+      dialog.value?.querySelectorAll<HTMLElement>('button:not([disabled]), select:not([disabled])') ?? [],
+    );
+    if (!list.length) return;
+    const first = list[0];
+    const last = list[list.length - 1];
+    const active = document.activeElement;
+    if (!dialog.value?.contains(active) || (e.shiftKey && active === first)) {
+      e.preventDefault();
+      (e.shiftKey ? last : first).focus();
+    } else if (!e.shiftKey && active === last) {
+      e.preventDefault();
+      first.focus();
+    }
+  }
+}
 </script>
 
 <template>
-  <div class="overlay" @click.self="emit('cancel')" @keydown.esc.stop.prevent="emit('cancel')">
-    <div class="dialog" role="alertdialog" aria-modal="true" aria-label="카테고리 삭제">
+  <div class="overlay" @click.self="emit('cancel')" @keydown="onKeydown">
+    <div ref="dialog" class="dialog" role="alertdialog" aria-modal="true" aria-label="카테고리 삭제">
       <h3 class="title">'{{ name }}' 삭제</h3>
       <p>지출 {{ expenseCount }}건을 옮길 카테고리를 고르세요.</p>
       <p v-if="noteCount > 0">메모 {{ noteCount }}개도 함께 옮겨요.</p>
-      <select v-model.number="target" aria-label="옮길 카테고리">
+      <select ref="select" v-model.number="target" aria-label="옮길 카테고리">
         <option v-for="c in targets" :key="c.id" :value="c.id">{{ c.name }}</option>
       </select>
       <div class="actions">

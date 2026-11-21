@@ -54,7 +54,16 @@ const appearances: { id: Appearance; label: string }[] = [
   { id: 'dark', label: '다크' },
 ];
 const pickTheme = (t: Theme) => guarded(() => settings.setTheme(t));
-const pickAppearance = (a: Appearance) => guarded(() => settings.setAppearance(a));
+async function onAppearance(e: Event, a: Appearance) {
+  await guarded(() => settings.setAppearance(a));
+  // 저장에 실패하면 스토어 값으로 되돌린다.
+  if (settings.appearance !== a) {
+    const group = (e.target as HTMLInputElement).closest("[role=radiogroup]");
+    group?.querySelectorAll<HTMLInputElement>("input[type=radio]").forEach((r) => {
+      r.checked = r.value === settings.appearance;
+    });
+  }
+}
 </script>
 
 <template>
@@ -103,7 +112,7 @@ const pickAppearance = (a: Appearance) => guarded(() => settings.setAppearance(a
             :value="a.id"
             :checked="settings.appearance === a.id"
             :disabled="busy"
-            @change="pickAppearance(a.id)"
+            @change="onAppearance($event, a.id)"
           />
           {{ a.label }}
         </label>
