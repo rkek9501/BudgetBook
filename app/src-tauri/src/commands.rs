@@ -1,6 +1,6 @@
 use std::fs;
 use std::path::PathBuf;
-use std::sync::Mutex;
+use std::sync::{Mutex, MutexGuard};
 
 use rusqlite::Connection;
 use tauri::State;
@@ -46,13 +46,18 @@ impl AppState {
     }
 }
 
+/// Locks a mutex, recovering from poisoning: the guarded value is still valid.
+fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
+    m.lock().unwrap_or_else(|e| e.into_inner())
+}
+
 fn unavailable() -> AppError {
     AppError::DbUnavailable("데이터베이스를 사용할 수 없습니다.".into())
 }
 
 /// Locks `db` once for the whole closure; fails with `db_unavailable` if closed.
 fn with_db<T>(state: &AppState, f: impl FnOnce(&mut Connection) -> AppResult<T>) -> AppResult<T> {
-    let mut guard = state.db.lock().map_err(|_| unavailable())?;
+    let mut guard = lock(&state.db);
     match guard.as_mut() {
         Some(conn) => f(conn),
         None => Err(unavailable()),
@@ -60,14 +65,14 @@ fn with_db<T>(state: &AppState, f: impl FnOnce(&mut Connection) -> AppResult<T>)
 }
 
 fn status(state: &AppState) -> DbStatus {
-    let open = state.db.lock().map(|g| g.is_some()).unwrap_or(false);
+    let open = lock(&state.db).is_some();
     if open {
         return DbStatus {
             ok: true,
             error: None,
         };
     }
-    let error = state.open_error.lock().ok().and_then(|e| e.clone());
+    let error = lock(&state.open_error).clone();
     DbStatus {
         ok: false,
         error: Some(error.unwrap_or_else(|| "데이터베이스를 열 수 없습니다.".into())),
@@ -80,7 +85,7 @@ pub fn db_status_impl(state: &AppState) -> DbStatus {
 
 pub fn retry_open_impl(state: &AppState) -> AppResult<DbStatus> {
     {
-        let mut guard = state.db.lock().map_err(|_| unavailable())?;
+        let mut guard = lock(&state.db);
         if guard.is_none() {
             match db::open(&state.db_path) {
                 Ok(conn) => {
@@ -88,14 +93,10 @@ pub fn retry_open_impl(state: &AppState) -> AppResult<DbStatus> {
                         eprintln!("daily backup failed: {e}");
                     }
                     *guard = Some(conn);
-                    if let Ok(mut err) = state.open_error.lock() {
-                        *err = None;
-                    }
+                    *lock(&state.open_error) = None;
                 }
                 Err(e) => {
-                    if let Ok(mut err) = state.open_error.lock() {
-                        *err = Some(e.to_string());
-                    }
+                    *lock(&state.open_error) = Some(e.to_string());
                 }
             }
         }
@@ -208,15 +209,13 @@ pub fn set_setting_impl(state: &AppState, key: &str, value: &str) -> AppResult<(
 }
 
 pub fn list_backups_impl(state: &AppState) -> AppResult<Vec<BackupInfo>> {
-    with_db(state, |_| backup::list(&state.backup_dir))
+    backup::list(&state.backup_dir)
 }
 
 pub fn restore_backup_impl(state: &AppState, file_name: &str) -> AppResult<()> {
-    let mut guard = state.db.lock().map_err(|_| unavailable())?;
+    let mut guard = lock(&state.db);
     backup::restore(&mut guard, &state.db_path, &state.backup_dir, file_name)?;
-    if let Ok(mut err) = state.open_error.lock() {
-        *err = None;
-    }
+    *lock(&state.open_error) = None;
     Ok(())
 }
 
@@ -400,7 +399,6 @@ mod tests {
             "db_unavailable"
         );
         assert_eq!(load_fixed_impl(&s).unwrap_err().code(), "db_unavailable");
-        assert_eq!(list_backups_impl(&s).unwrap_err().code(), "db_unavailable");
         assert_eq!(
             export_json_impl(&s, "x.json").unwrap_err().code(),
             "db_unavailable"
@@ -496,5 +494,139 @@ mod tests {
         let r = import_replace_all_impl(&s, payload).unwrap();
         assert_eq!(r.expenses, 1);
         assert!(!backup::list(&s.backup_dir).unwrap().is_empty());
+    }
+
+    fn expense_count(s: &AppState) -> i64 {
+        lock(&s.db)
+            .as_ref()
+            .unwrap()
+            .query_row("SELECT COUNT(*) FROM expenses", [], |r| r.get(0))
+            .unwrap()
+    }
+
+    fn new_expense(cat: i64, desc: &str) -> NewExpense {
+        NewExpense {
+            date: "2026-11-01".into(),
+            description: desc.into(),
+            amount: 100,
+            category_id: cat,
+        }
+    }
+
+    fn seeded_state() -> (tempfile::TempDir, AppState, i64) {
+        let (dir, s) = open_state();
+        let cats = seed_default_categories_impl(
+            &s,
+            vec![NewCategory {
+                name: "식비".into(),
+                color: "#ff0000".into(),
+            }],
+        )
+        .unwrap();
+        let cat = cats[0].id;
+        add_expense_impl(&s, new_expense(cat, "기존")).unwrap();
+        (dir, s, cat)
+    }
+
+    fn sample_payload(n: usize) -> ImportPayload {
+        ImportPayload {
+            categories: vec![ImportCategory {
+                source_id: 1,
+                name: "새".into(),
+                color: "#112233".into(),
+            }],
+            expenses: (0..n)
+                .map(|i| ImportExpense {
+                    date: "2026-11-02".into(),
+                    description: format!("e{i}"),
+                    amount: 1,
+                    source_category_id: 1,
+                })
+                .collect(),
+            no_expense_days: vec![],
+            fixed_items: vec![],
+            notes: vec![],
+            accounting_start_day: 25,
+        }
+    }
+
+    #[test]
+    fn list_backups_works_with_db_closed() {
+        let (_dir, s, _) = seeded_state();
+        backup::create_backup(lock(&s.db).as_ref().unwrap(), &s.backup_dir).unwrap();
+        *lock(&s.db) = None;
+        *lock(&s.open_error) = Some("boom".into());
+        assert!(!list_backups_impl(&s).unwrap().is_empty());
+    }
+
+    #[test]
+    fn import_fails_and_keeps_data_when_backup_fails() {
+        let (dir, mut s, _) = seeded_state();
+        let bogus = dir.path().join("not-a-dir");
+        fs::write(&bogus, b"x").unwrap();
+        s.backup_dir = bogus;
+        assert!(import_replace_all_impl(&s, sample_payload(3)).is_err());
+        assert_eq!(expense_count(&s), 1);
+    }
+
+    #[test]
+    fn import_backup_holds_pre_import_data() {
+        let (_dir, s, _) = seeded_state();
+        import_replace_all_impl(&s, sample_payload(3)).unwrap();
+        assert_eq!(expense_count(&s), 3);
+        let list = backup::list(&s.backup_dir).unwrap();
+        assert!(list.iter().any(|b| b.expense_count == 1));
+        assert!(list.iter().all(|b| b.expense_count != 3));
+    }
+
+    #[test]
+    fn restore_restores_data_and_clears_open_error_from_closed() {
+        let (_dir, s, cat) = seeded_state();
+        let p = backup::create_backup(lock(&s.db).as_ref().unwrap(), &s.backup_dir).unwrap();
+        let name = p.file_name().unwrap().to_string_lossy().to_string();
+        add_expense_impl(&s, new_expense(cat, "추가")).unwrap();
+        assert_eq!(expense_count(&s), 2);
+        *lock(&s.db) = None;
+        *lock(&s.open_error) = Some("boom".into());
+        restore_backup_impl(&s, &name).unwrap();
+        assert!(lock(&s.open_error).is_none());
+        assert_eq!(expense_count(&s), 1);
+    }
+
+    #[test]
+    fn read_text_file_rejects_over_50mb() {
+        let dir = tempfile::tempdir().unwrap();
+        let p = dir.path().join("big.txt");
+        let f = fs::File::create(&p).unwrap();
+        f.set_len(MAX_TEXT_FILE_BYTES + 1).unwrap();
+        drop(f);
+        assert_eq!(
+            read_text_file_impl(p.to_str().unwrap()).unwrap_err().code(),
+            "invalid_input"
+        );
+    }
+
+    #[test]
+    fn retry_open_is_noop_when_already_open() {
+        let (_dir, s, _) = seeded_state();
+        *lock(&s.open_error) = Some("stale".into());
+        assert!(retry_open_impl(&s).unwrap().ok);
+        assert_eq!(expense_count(&s), 1);
+        assert_eq!(lock(&s.open_error).as_deref(), Some("stale"));
+    }
+
+    #[test]
+    fn poisoned_locks_are_recovered() {
+        let (_dir, s, _) = seeded_state();
+        let s = std::sync::Arc::new(s);
+        let s2 = s.clone();
+        let _ = std::thread::spawn(move || {
+            let _g = s2.db.lock().unwrap();
+            let _h = s2.open_error.lock().unwrap();
+            panic!("poison");
+        })
+        .join();
+        assert!(db_status_impl(&s).ok);
+        assert!(bootstrap_impl(&s).is_ok());
     }
 }
