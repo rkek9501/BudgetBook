@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref } from 'vue';
+import { getCurrentWindow } from '@tauri-apps/api/window';
 import { onMenu, openBackupFolder } from '@/api/commands';
 import { MESSAGES } from '@/domain/messages';
 import { dialogOpen, useShortcuts } from '@/composables/useShortcuts';
@@ -7,6 +8,7 @@ import AppShell from '@/components/AppShell.vue';
 import FixedExpenseSheet from '@/components/FixedExpenseSheet.vue';
 import MainLayout from '@/components/MainLayout.vue';
 import SettingsSheet from '@/components/SettingsSheet.vue';
+import { flushAll } from '@/composables/useBeforeClose';
 import { useAppearance } from '@/composables/useAppearance';
 import { useLedgerStore } from '@/stores/ledger';
 
@@ -75,9 +77,24 @@ async function onMenuId(id: string) {
 }
 
 let unlisten: (() => void) | null = null;
+let unlistenClose: (() => void) | null = null;
 let disposed = false;
 onMounted(() => {
   void ledger.init();
+  // 창을 닫기 전에 입력 중인 메모 등을 저장한다. preventDefault를 부르지 않으므로 기다린 뒤 그대로 닫힌다.
+  try {
+    void getCurrentWindow()
+      .onCloseRequested(async () => {
+        await flushAll(2000);
+      })
+      .then((u) => {
+        if (disposed) u();
+        else unlistenClose = u;
+      })
+      .catch(() => {});
+  } catch {
+    // Tauri 밖(브라우저 미리보기 등)에서는 창 API가 없다.
+  }
   void onMenu((id) => void onMenuId(id)).then((u) => {
     if (disposed) u();
     else unlisten = u;
@@ -86,6 +103,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
   disposed = true;
   unlisten?.();
+  unlistenClose?.();
 });
 </script>
 

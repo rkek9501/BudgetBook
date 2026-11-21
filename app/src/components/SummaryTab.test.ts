@@ -10,6 +10,7 @@ import SummaryTab from './SummaryTab.vue';
 import RightPanel from './RightPanel.vue';
 import { useLedgerStore } from '@/stores/ledger';
 import { MESSAGES } from '@/domain/messages';
+import { flushAll } from '@/composables/useBeforeClose';
 
 function setup(empty = false) {
   setActivePinia(createPinia());
@@ -86,6 +87,51 @@ describe('SummaryTab', () => {
     vi.advanceTimersByTime(1);
     expect(save).toHaveBeenCalledTimes(1);
     expect(save).toHaveBeenCalledWith(1, '가나', '2026-11');
+  });
+
+  it('쉬지 않고 입력해도 첫 입력 후 1초 안에 최신 글을 저장', async () => {
+    const { w, save } = setup();
+    await w.findAll('button.category-row')[0].trigger('click');
+    const ta = w.find('textarea');
+    let text = '';
+    for (let t = 0; t < 3000; t += 200) {
+      text += '가';
+      await ta.setValue(text);
+      if (t === 800) {
+        expect(save).not.toHaveBeenCalled();
+      }
+      vi.advanceTimersByTime(200);
+    }
+    // 입력은 t=0..2800, 저장은 t=1000(5글자)과 t=2200 근처에 일어난다
+    expect(save.mock.calls.length).toBeGreaterThanOrEqual(2);
+    expect(save.mock.calls[0]).toEqual([1, '가가가가가', '2026-11']);
+    expect(save.mock.calls[1][1].length).toBeGreaterThan(5);
+    vi.advanceTimersByTime(600);
+    expect(save).toHaveBeenLastCalledWith(1, text, '2026-11');
+  });
+
+  it('빈 메모는 최대 대기 타이머로도 보내지 않는다', async () => {
+    const { w, save } = setup();
+    await w.findAll('button.category-row')[0].trigger('click');
+    const ta = w.find('textarea');
+    for (let i = 0; i < 20; i++) {
+      await ta.setValue(i % 2 === 0 ? '' : '  ');
+      vi.advanceTimersByTime(200);
+    }
+    vi.advanceTimersByTime(3000);
+    expect(save).not.toHaveBeenCalled();
+  });
+
+  it('창 닫기 전 flushAll로 대기 중인 메모가 저장된다', async () => {
+    const { w, save } = setup();
+    await w.findAll('button.category-row')[0].trigger('click');
+    await w.find('textarea').setValue('닫기 직전');
+    expect(save).not.toHaveBeenCalled();
+    await flushAll(2000);
+    expect(save).toHaveBeenCalledWith(1, '닫기 직전', '2026-11');
+    w.unmount();
+    await flushAll(2000);
+    expect(save).toHaveBeenCalledTimes(1);
   });
 
   it('접으면 대기 중인 저장을 즉시 실행', async () => {

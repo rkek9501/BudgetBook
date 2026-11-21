@@ -3,7 +3,22 @@ import { flushPromises, mount } from '@vue/test-utils';
 import { defineComponent } from 'vue';
 import { createPinia, setActivePinia } from 'pinia';
 
-const h = vi.hoisted(() => ({ menu: null as ((id: string) => void) | null, unlisten: vi.fn(), open: vi.fn(), load: vi.fn() }));
+const h = vi.hoisted(() => ({
+  menu: null as ((id: string) => void) | null,
+  unlisten: vi.fn(),
+  open: vi.fn(),
+  load: vi.fn(),
+  closeHandler: null as (() => Promise<void>) | null,
+  unlistenClose: vi.fn(),
+}));
+vi.mock('@tauri-apps/api/window', () => ({
+  getCurrentWindow: () => ({
+    onCloseRequested: async (fn: () => Promise<void>) => {
+      h.closeHandler = fn;
+      return h.unlistenClose;
+    },
+  }),
+}));
 vi.mock('@/api/commands', async (orig) => ({
   ...(await orig<object>()),
   onMenu: vi.fn(async (fn: (id: string) => void) => {
@@ -19,6 +34,7 @@ import RightPanel from '@/components/RightPanel.vue';
 import { useShortcuts } from './useShortcuts';
 import { useLedgerStore } from '@/stores/ledger';
 import { MESSAGES } from '@/domain/messages';
+import { registerBeforeClose } from './useBeforeClose';
 
 const stubs = {
   AppShell: { template: '<div><slot /></div>' },
@@ -41,12 +57,32 @@ function setupApp() {
 beforeEach(() => {
   document.body.innerHTML = '';
   h.menu = null;
+  h.closeHandler = null;
+  h.unlistenClose.mockClear();
   h.unlisten.mockClear();
   h.open.mockReset();
   h.load.mockReset();
   h.load.mockResolvedValue({ expenses: [], noExpenseDays: [], notes: [], fixedAmounts: [] });
 });
 afterEach(() => vi.restoreAllMocks());
+
+describe('창 닫기 전 저장', () => {
+  it('닫기 요청 시 등록된 저장을 기다리고 언마운트하면 해제', async () => {
+    const { w } = setupApp();
+    await flushPromises();
+    expect(h.closeHandler).not.toBeNull();
+    let saved = false;
+    const un = registerBeforeClose(async () => {
+      await Promise.resolve();
+      saved = true;
+    });
+    await h.closeHandler!();
+    expect(saved).toBe(true);
+    un();
+    w.unmount();
+    expect(h.unlistenClose).toHaveBeenCalled();
+  });
+});
 
 describe('메뉴 id → 동작', () => {
   it('prev-month, next-month, today, tab-day, tab-summary, settings', async () => {

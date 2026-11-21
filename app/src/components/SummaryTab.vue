@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
+import { registerBeforeClose } from '@/composables/useBeforeClose';
 import { formatDateLong } from '@/domain/dates';
 import { formatWon } from '@/domain/money';
 import { MESSAGES } from '@/domain/messages';
@@ -10,6 +11,8 @@ import CategoryTotalRow from './CategoryTotalRow.vue';
 defineEmits<{ (e: 'open-fixed'): void }>();
 
 const DEBOUNCE_MS = 500;
+// 쉬지 않고 입력해도 첫 미저장 입력 후 이 시간 안에는 저장한다.
+const MAX_WAIT_MS = 1000;
 const ledger = useLedgerStore();
 
 const expandedId = ref<number | null>(null);
@@ -18,15 +21,25 @@ const draft = ref('');
 let memoMonth: MonthStr = ledger.viewMonth;
 let dirty = false;
 let timer: ReturnType<typeof setTimeout> | null = null;
+let maxTimer: ReturnType<typeof setTimeout> | null = null;
 // 저장을 순서대로 이어 붙여 마지막 입력이 항상 마지막에 저장되게 한다.
 let chain: Promise<unknown> | null = null;
 
-function flush() {
+function clearTimers() {
   if (timer !== null) {
     clearTimeout(timer);
     timer = null;
   }
-  if (!dirty || expandedId.value === null) return;
+  if (maxTimer !== null) {
+    clearTimeout(maxTimer);
+    maxTimer = null;
+  }
+}
+
+// 대기 중인 저장이 모두 끝나면 이행되는 Promise를 돌려준다(창 닫기 전 기다리는 용도).
+function flush(): Promise<unknown> {
+  clearTimers();
+  if (!dirty || expandedId.value === null) return chain ?? Promise.resolve();
   dirty = false;
   const id = expandedId.value;
   const text = draft.value;
@@ -43,10 +56,17 @@ function flush() {
   void next.then(() => {
     if (chain === next) chain = null;
   });
+  return next;
+}
+
+// 빈 메모는 입력 중에 보내지 않는다(메모만 있던 행이 사라지기 때문). 접기·포커스 이탈 때 저장한다.
+function flushIfNotBlank() {
+  if (draft.value.trim() !== '') void flush();
+  else clearTimers();
 }
 
 function toggle(id: number, note: string) {
-  flush();
+  void flush();
   if (expandedId.value === id) {
     expandedId.value = null;
     return;
@@ -60,18 +80,15 @@ function onDraft(value: string) {
   draft.value = value;
   dirty = true;
   if (timer !== null) clearTimeout(timer);
-  // 빈 메모는 입력 중에 보내지 않는다(메모만 있던 행이 사라지기 때문). 접기·포커스 이탈 때 저장한다.
-  timer = setTimeout(() => {
-    timer = null;
-    if (draft.value.trim() !== '') flush();
-  }, DEBOUNCE_MS);
+  timer = setTimeout(flushIfNotBlank, DEBOUNCE_MS);
+  if (maxTimer === null) maxTimer = setTimeout(flushIfNotBlank, MAX_WAIT_MS);
 }
 
 const rowIds = computed(() => ledger.summary.rows.map((r) => r.category.id));
 watch(rowIds, (ids) => {
   if (expandedId.value !== null && !ids.includes(expandedId.value)) {
     // 달 이동으로 행이 바뀐 경우 입력 중인 메모를 먼저 저장한다(저장은 펼칠 때의 달 기준).
-    flush();
+    void flush();
     dirty = false;
     expandedId.value = null;
     draft.value = '';
@@ -81,11 +98,15 @@ watch(rowIds, (ids) => {
 watch(
   () => ledger.viewMonth,
   () => {
-    flush();
+    void flush();
     expandedId.value = null;
   },
 );
-onBeforeUnmount(flush);
+const unregister = registerBeforeClose(flush);
+onBeforeUnmount(() => {
+  unregister();
+  void flush();
+});
 </script>
 
 <template>
@@ -101,7 +122,7 @@ onBeforeUnmount(flush);
         :draft="draft"
         @toggle="toggle(r.category.id, r.note)"
         @update:draft="onDraft"
-        @commit="flush"
+        @commit="flush()"
       />
     </ul>
     <p v-else class="empty">{{ MESSAGES.emptyMonth }}</p>
