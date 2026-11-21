@@ -12,30 +12,43 @@ const loaded = ref(false);
 const chosen = ref<BackupInfo | null>(null);
 const busy = ref(false);
 const error = ref<string | null>(null);
+const loadFailed = ref(false);
+const done = ref<string | null>(null);
 
-onMounted(async () => {
+async function load() {
+  loadFailed.value = false;
   try {
     backups.value = await api.listBackups();
     loaded.value = true;
+    error.value = null;
   } catch {
+    loadFailed.value = true;
     error.value = '백업 목록을 불러오지 못했어요.';
   }
-});
+}
+onMounted(load);
 
 async function restore() {
   const target = chosen.value;
   if (!target || busy.value) return;
   busy.value = true;
   error.value = null;
+  done.value = null;
+  let ok = false;
   try {
     await api.restoreBackup(target.fileName);
-    chosen.value = null;
-    emit('restored');
+    ok = true;
   } catch {
     chosen.value = null;
     error.value = '복원하지 못했어요. 지금 데이터는 그대로예요.';
   } finally {
     busy.value = false;
+  }
+  if (ok) {
+    chosen.value = null;
+    done.value = '되돌렸어요.';
+    emit('restored');
+    await load();
   }
 }
 
@@ -64,6 +77,8 @@ async function openFolder() {
       <button type="button" @click="openFolder">백업 폴더 열기</button>
     </div>
     <p v-if="error" role="alert" class="inline-error">{{ error }}</p>
+    <button v-if="loadFailed" type="button" @click="load">다시 불러오기</button>
+    <p v-if="done" role="status">{{ done }}</p>
 
     <ConfirmDialog
       :open="chosen !== null"

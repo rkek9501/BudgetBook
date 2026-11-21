@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref, watch } from 'vue';
+import { ref, watch } from 'vue';
 import { open, save } from '@tauri-apps/plugin-dialog';
 import * as api from '@/api/commands';
 import ConfirmDialog from '@/components/ConfirmDialog.vue';
@@ -64,18 +64,21 @@ async function confirmImport() {
   if (!p || busy.value) return;
   busy.value = true;
   clear();
+  let imported = false;
   try {
     const res = await api.importReplaceAll(p.payload);
     pending.value = null;
     info.value = `카테고리 ${res.categories}개, 지출 ${res.expenses}건, 무지출 ${res.noExpenseDays}일, 고정 지출 ${res.fixedItems}개, 메모 ${res.notes}개를 가져왔어요.`;
     backupKey.value++;
-    await ledger.init();
+    imported = true;
   } catch {
     pending.value = null;
     error.value = MESSAGES.saveFailed;
   } finally {
     busy.value = false;
   }
+  // init never rejects (failures go to ledger.dbError), so it is outside the save-failure try.
+  if (imported) await ledger.init();
 }
 
 async function startExport() {
@@ -97,17 +100,29 @@ async function startExport() {
   }
 }
 
-async function runAction(a: 'import' | 'export' | null | undefined) {
-  if (a !== 'import' && a !== 'export') return;
-  emit('action-done');
-  if (a === 'import') await startImport();
-  else await startExport();
-}
-onMounted(() => void runAction(props.action));
+const queued = ref<'import' | 'export' | null>(null);
 watch(
   () => props.action,
-  (a) => void runAction(a),
+  (a) => {
+    if (a === 'import' || a === 'export') queued.value = a;
+  },
+  { immediate: true },
 );
+watch(
+  [queued, busy],
+  () => {
+    const a = queued.value;
+    if (!a || busy.value) return;
+    queued.value = null;
+    emit('action-done');
+    void (a === 'import' ? startImport() : startExport());
+  },
+  { immediate: true },
+);
+
+async function onRestored() {
+  await ledger.init();
+}
 </script>
 
 <template>
@@ -128,7 +143,7 @@ watch(
 
     <section class="block">
       <h3>자동 백업</h3>
-      <BackupList :key="backupKey" @restored="ledger.init()" />
+      <BackupList :key="backupKey" @restored="onRestored" />
     </section>
 
     <ConfirmDialog

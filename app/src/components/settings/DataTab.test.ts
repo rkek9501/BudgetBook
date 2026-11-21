@@ -169,4 +169,37 @@ describe('DataTab', () => {
     expect(save).toHaveBeenCalledTimes(1);
     expect(w.emitted('action-done')).toHaveLength(2);
   });
+
+  it('init이 dbError를 설정해도 가져오기 성공이면 saveFailed 없음', async () => {
+    vi.mocked(parseWindowsData).mockReturnValue({ ok: true, payload: {}, preview } as never);
+    vi.mocked(api.importReplaceAll).mockResolvedValue({
+      categories: 1, expenses: 1, noExpenseDays: 0, fixedItems: 0, notes: 0,
+    });
+    const { w, init } = setup();
+    const ledger = useLedgerStore();
+    init.mockImplementation(async () => {
+      ledger.dbError = 'boom';
+    });
+    await pick(w);
+    await btn(w, '가져오기')!.trigger('click');
+    await flushPromises();
+    expect(w.text()).not.toContain(MESSAGES.saveFailed);
+    expect(w.text()).toContain('가져왔어요.');
+  });
+
+  it('busy 중 도착한 action은 busy가 풀린 뒤 시작되고 그때 action-done', async () => {
+    let release!: (v: string | null) => void;
+    vi.mocked(open).mockReturnValue(new Promise((r) => (release = r)) as never);
+    vi.mocked(save).mockResolvedValue(null);
+    const { w } = setup();
+    await btn(w, '가져오기…')!.trigger('click');
+    await w.setProps({ action: 'export' });
+    await flushPromises();
+    expect(save).not.toHaveBeenCalled();
+    expect(w.emitted('action-done')).toBeUndefined();
+    release(null);
+    await flushPromises();
+    expect(save).toHaveBeenCalledTimes(1);
+    expect(w.emitted('action-done')).toHaveLength(1);
+  });
 });

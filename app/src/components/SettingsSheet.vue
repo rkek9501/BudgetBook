@@ -5,8 +5,8 @@ import CategoriesTab from './settings/CategoriesTab.vue';
 import DataTab from './settings/DataTab.vue';
 import GeneralTab from './settings/GeneralTab.vue';
 
-const props = defineProps<{ initialTab?: 'general' | 'categories' | 'data' }>();
-const emit = defineEmits<{ (e: 'close'): void }>();
+const props = defineProps<{ initialTab?: 'general' | 'categories' | 'data'; action?: 'import' | 'export' | null }>();
+const emit = defineEmits<{ (e: 'close'): void; (e: 'action-done'): void }>();
 
 type TabId = 'general' | 'categories' | 'data';
 const tabs: { id: TabId; label: string }[] = [
@@ -36,7 +36,7 @@ const tab = ref<TabId>(props.initialTab ?? 'general');
     <div class="tab-body" role="tabpanel">
       <GeneralTab v-if="tab === 'general'" />
       <CategoriesTab v-else-if="tab === 'categories'" />
-      <DataTab v-else />
+      <DataTab v-else :action="props.action" @action-done="emit('action-done')" />
     </div>
     <div class="footer">
       <button type="button" class="btn" @click="emit('close')">닫기</button>

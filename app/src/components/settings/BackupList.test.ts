@@ -41,4 +41,26 @@ describe('BackupList', () => {
     expect(w.emitted('restored')).toBeUndefined();
     expect(w.find('[role="alert"]').text()).toContain('복원하지 못했어요');
   });
+
+  it('복원 성공 후 목록을 다시 불러오고 되돌렸어요 표시', async () => {
+    vi.mocked(api.restoreBackup).mockResolvedValue();
+    const w = mount(BackupList);
+    await flushPromises();
+    await w.find('[data-testid="backup-restore"]').trigger('click');
+    await w.findAll('button').find((b) => b.text() === '되돌리기')!.trigger('click');
+    await flushPromises();
+    expect(api.listBackups).toHaveBeenCalledTimes(2);
+    expect(w.text()).toContain('되돌렸어요.');
+  });
+
+  it('목록 로드 실패 → 다시 불러오기 → 목록 표시', async () => {
+    vi.mocked(api.listBackups).mockRejectedValueOnce(new Error('x'));
+    const w = mount(BackupList);
+    await flushPromises();
+    expect(w.find('[role="alert"]').text()).toContain('백업 목록을 불러오지 못했어요.');
+    await w.findAll('button').find((b) => b.text() === '다시 불러오기')!.trigger('click');
+    await flushPromises();
+    expect(w.text()).toContain('지출 12건');
+    expect(w.find('[role="alert"]').exists()).toBe(false);
+  });
 });

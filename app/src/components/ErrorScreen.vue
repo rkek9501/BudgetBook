@@ -26,6 +26,10 @@ async function retry() {
   }
 }
 
+async function onRestored() {
+  await ledger.init();
+}
+
 async function openFolder() {
   inlineError.value = null;
   try {
@@ -53,7 +57,7 @@ async function openFolder() {
         <button type="button" :disabled="busy" @click="openFolder">백업 폴더 열기</button>
       </div>
 
-      <BackupList v-if="showBackups" class="backups" :show-folder-button="false" @restored="ledger.init()" />
+      <BackupList v-if="showBackups" class="backups" :show-folder-button="false" @restored="onRestored" />
 
       <p v-if="inlineError" role="alert" class="inline-error">{{ inlineError }}</p>
     </section>
