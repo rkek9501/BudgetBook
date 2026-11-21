@@ -10,6 +10,7 @@ const h = vi.hoisted(() => ({
   load: vi.fn(),
   closeHandler: null as ((e: { preventDefault: () => void }) => Promise<void>) | null,
   unlistenClose: vi.fn(),
+  saveNote: vi.fn(),
 }));
 vi.mock('@tauri-apps/api/window', () => ({
   getCurrentWindow: () => ({
@@ -27,6 +28,7 @@ vi.mock('@/api/commands', async (orig) => ({
   }),
   openBackupFolder: h.open,
   loadPeriod: h.load,
+  saveNote: h.saveNote,
 }));
 
 import App from '@/App.vue';
@@ -62,6 +64,7 @@ beforeEach(() => {
   h.unlisten.mockClear();
   h.open.mockReset();
   h.load.mockReset();
+  h.saveNote.mockReset();
   h.load.mockResolvedValue({ expenses: [], noExpenseDays: [], notes: [], fixedAmounts: [] });
 });
 afterEach(() => vi.restoreAllMocks());
@@ -120,6 +123,38 @@ describe('창 닫기: 저장 실패·시간 초과', () => {
     const p2 = h.closeHandler!(e2);
     await vi.advanceTimersByTimeAsync(2000);
     await p2;
+    expect(e2.preventDefault).not.toHaveBeenCalled();
+    un();
+  });
+
+  it('막은 뒤 메모 저장이 성공하면 다음 닫기 실패에서 다시 막고 알린다', async () => {
+    const { ledger } = setupApp();
+    await flushPromises();
+    const un = registerBeforeClose(() => false);
+    const e1 = { preventDefault: vi.fn() };
+    await h.closeHandler!(e1);
+    expect(e1.preventDefault).toHaveBeenCalledTimes(1);
+    // 창을 닫지 않고 계속 쓰는 동안 메모 저장이 성공한다
+    h.saveNote.mockResolvedValueOnce(undefined);
+    expect(await ledger.saveNote(1, '메모', '2026-11')).toBe(true);
+    ledger.clearToast();
+    const e2 = { preventDefault: vi.fn() };
+    await h.closeHandler!(e2);
+    expect(e2.preventDefault).toHaveBeenCalledTimes(1);
+    expect(ledger.toast).toBe(MESSAGES.memoCloseFailed);
+    un();
+  });
+
+  it('막은 뒤 메모 저장이 실패하면 막힘 상태를 유지한다', async () => {
+    setupApp();
+    const ledger = useLedgerStore();
+    await flushPromises();
+    const un = registerBeforeClose(() => false);
+    await h.closeHandler!({ preventDefault: vi.fn() });
+    h.saveNote.mockRejectedValueOnce(new Error('disk full'));
+    expect(await ledger.saveNote(1, '메모', '2026-11')).toBe(false);
+    const e2 = { preventDefault: vi.fn() };
+    await h.closeHandler!(e2);
     expect(e2.preventDefault).not.toHaveBeenCalled();
     un();
   });

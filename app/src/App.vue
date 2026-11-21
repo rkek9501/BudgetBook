@@ -80,9 +80,17 @@ let unlisten: (() => void) | null = null;
 let closeBlocked = false;
 let unlistenClose: (() => void) | null = null;
 let disposed = false;
+// 닫기를 한 번 막은 뒤 메모 저장이 다시 성공하면 막힘 상태를 푼다.
+// 그래야 나중에 새로 생긴 저장 실패도 다시 한 번 막고 알린다.
+ledger.$onAction(({ name, after }) => {
+  if (name !== 'saveNote') return;
+  after((ok) => {
+    if (ok === true) closeBlocked = false;
+  });
+});
 onMounted(() => {
   void ledger.init();
-  // 창을 닫기 전에 입력 중인 메모 등을 저장한다. preventDefault를 부르지 않으므로 기다린 뒤 그대로 닫힌다.
+  // 창을 닫기 전에 입력 중인 메모 등을 저장한다. 저장에 실패하면 한 번은 닫기를 막고 알린다(설계 §6.4).
   try {
     void getCurrentWindow()
       .onCloseRequested(async (event) => {
