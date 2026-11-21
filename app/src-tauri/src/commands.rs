@@ -235,9 +235,33 @@ pub fn list_backups_impl(state: &AppState) -> AppResult<Vec<BackupInfo>> {
 
 pub fn restore_backup_impl(state: &AppState, file_name: &str) -> AppResult<()> {
     let mut guard = lock(&state.db);
-    backup::restore(&mut guard, &state.db_path, &state.backup_dir, file_name)?;
+    if let Err(e) = backup::restore(&mut guard, &state.db_path, &state.backup_dir, file_name) {
+        if guard.is_none() {
+            // 복원이 실패했고 원래 DB도 다시 열 수 없다. 오류 화면이 이유를 보여 주도록 기록한다.
+            match db::open(&state.db_path) {
+                Ok(conn) => *guard = Some(conn),
+                Err(open_err) => *lock(&state.open_error) = Some(open_err.to_string()),
+            }
+        }
+        return Err(e);
+    }
     *lock(&state.open_error) = None;
+    // 오류 화면에서 복원한 경우 등, 그날 백업이 아직 없으면 복원된 데이터로 만든다.
+    if let Some(conn) = guard.as_ref() {
+        record_backup(
+            state,
+            backup::daily_backup(conn, &state.backup_dir).map(|_| ()),
+        );
+    }
     Ok(())
+}
+
+/// 자동 백업 결과를 기록한다. 성공하면 이전 실패 알림을 지운다.
+fn record_backup(state: &AppState, result: AppResult<()>) {
+    *lock(&state.backup_error) = result.err().map(|e| {
+        eprintln!("backup failed: {e}");
+        e.to_string()
+    });
 }
 
 pub fn read_text_file_impl(path: &str) -> AppResult<String> {
@@ -256,6 +280,7 @@ pub fn import_replace_all_impl(
 ) -> AppResult<ImportResult> {
     with_db(state, |conn| {
         backup::create_backup(conn, &state.backup_dir)?;
+        *lock(&state.backup_error) = None;
         transfer::import_replace_all(conn, payload)
     })
 }
@@ -674,6 +699,67 @@ mod tests {
         restore_backup_impl(&s, &name).unwrap();
         assert!(lock(&s.open_error).is_none());
         assert_eq!(expense_count(&s), 1);
+    }
+
+    #[test]
+    fn import_and_restore_clear_stale_backup_error() {
+        let (_dir, s, cat) = seeded_state();
+        *lock(&s.backup_error) = Some("old".into());
+        import_replace_all_impl(&s, sample_payload(1)).unwrap();
+        assert!(lock(&s.backup_error).is_none());
+        let p = backup::create_backup(lock(&s.db).as_ref().unwrap(), &s.backup_dir).unwrap();
+        let name = p.file_name().unwrap().to_string_lossy().to_string();
+        *lock(&s.backup_error) = Some("old".into());
+        restore_backup_impl(&s, &name).unwrap();
+        assert!(lock(&s.backup_error).is_none());
+        let _ = cat;
+    }
+
+    #[test]
+    fn restore_from_error_screen_makes_todays_backup() {
+        let (_dir, s, _cat) = seeded_state();
+        let p = backup::create_backup(lock(&s.db).as_ref().unwrap(), &s.backup_dir).unwrap();
+        // 날짜가 지난 백업처럼 보이게 이름을 바꾸고, 오늘 백업은 없앤다
+        let old = s.backup_dir.join("budgetbook-20200101-010101.db");
+        fs::rename(&p, &old).unwrap();
+        *lock(&s.db) = None;
+        *lock(&s.open_error) = Some("boom".into());
+        restore_backup_impl(&s, "budgetbook-20200101-010101.db").unwrap();
+        let today = crate::time::today_kst_compact();
+        let names: Vec<String> = backup::list(&s.backup_dir)
+            .unwrap()
+            .into_iter()
+            .map(|b| b.file_name)
+            .collect();
+        assert!(names.iter().any(|n| n.contains(&today)), "{names:?}");
+        assert!(lock(&s.backup_error).is_none());
+    }
+
+    #[test]
+    fn failed_restore_with_unreopenable_original_sets_open_error() {
+        let dir = tempfile::tempdir().unwrap();
+        let db_path = dir.path().join("live.db");
+        let backup_dir = dir.path().join("backups");
+        let name = {
+            let (_gd, good) = db::test_util::test_db();
+            let p = backup::create_backup(&good, &backup_dir).unwrap();
+            p.file_name().unwrap().to_string_lossy().to_string()
+        };
+        db::test_util::make_corrupt_page_db(&db_path);
+        // 복사 단계가 실제로 실패하도록 임시 경로에 디렉터리를 둔다
+        fs::create_dir_all(dir.path().join("live.db.restore-tmp")).unwrap();
+        let s = AppState {
+            db: Mutex::new(Some(rusqlite::Connection::open(&db_path).unwrap())),
+            db_path,
+            backup_dir,
+            open_error: Mutex::new(None),
+            backup_error: Mutex::new(None),
+        };
+        assert!(restore_backup_impl(&s, &name).is_err());
+        assert!(lock(&s.db).is_none());
+        let msg = lock(&s.open_error).clone().expect("open_error set");
+        assert!(msg.contains("damaged"), "{msg}");
+        assert!(!db_status_impl(&s).ok);
     }
 
     #[test]
