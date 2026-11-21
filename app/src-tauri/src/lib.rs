@@ -3,6 +3,8 @@ pub mod time;
 pub mod models;
 pub mod db;
 pub mod repo;
+pub mod backup;
+pub mod transfer;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {

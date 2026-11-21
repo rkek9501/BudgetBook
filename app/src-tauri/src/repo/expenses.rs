@@ -16,7 +16,7 @@ pub(crate) fn validate_date(date: &str) -> AppResult<()> {
     }
 }
 
-fn clean_description(description: &str) -> AppResult<String> {
+pub(crate) fn clean_description(description: &str) -> AppResult<String> {
     let d = description.trim();
     if d.is_empty() {
         return Err(AppError::InvalidInput("내용을 입력하세요.".into()));
@@ -24,7 +24,7 @@ fn clean_description(description: &str) -> AppResult<String> {
     Ok(d.to_string())
 }
 
-fn validate_amount(amount: i64) -> AppResult<()> {
+pub(crate) fn validate_amount(amount: i64) -> AppResult<()> {
     if (0..=MAX_AMOUNT).contains(&amount) {
         Ok(())
     } else {

@@ -12,7 +12,7 @@ fn invalid(msg: &str) -> AppError {
     AppError::InvalidInput(msg.into())
 }
 
-fn validate_month(month: &str) -> AppResult<()> {
+pub(crate) fn validate_month(month: &str) -> AppResult<()> {
     if month.len() == 7
         && chrono::NaiveDate::parse_from_str(&format!("{month}-01"), "%Y-%m-%d").is_ok()
     {
@@ -23,7 +23,7 @@ fn validate_month(month: &str) -> AppResult<()> {
 }
 
 /// Validates the whole payload and returns the items with trimmed names.
-fn validate(items: &[FixedItem], amounts: &[FixedAmount]) -> AppResult<Vec<FixedItem>> {
+pub(crate) fn validate(items: &[FixedItem], amounts: &[FixedAmount]) -> AppResult<Vec<FixedItem>> {
     let mut ids = HashSet::new();
     let mut names = HashSet::new();
     let mut cleaned = Vec::with_capacity(items.len());
