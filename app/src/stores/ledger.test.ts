@@ -25,6 +25,7 @@ vi.mock('@/api/commands', () => {
 });
 
 import * as api from '@/api/commands';
+import type { PeriodData } from '@/api/commands';
 import { DEFAULT_CATEGORIES } from '@/domain/categories';
 import { setNowProvider } from '@/domain/dates';
 import { MESSAGES } from '@/domain/messages';
@@ -230,7 +231,7 @@ describe('ledger store', () => {
     setup();
     const s = useLedgerStore();
     await s.init();
-    const resolvers: ((d: typeof EMPTY) => void)[] = [];
+    const resolvers: ((d: PeriodData) => void)[] = [];
     vi.mocked(api.loadPeriod).mockImplementation(() => new Promise((r) => resolvers.push(r)));
     const p1 = s.goNext(); // 2026-12
     const p2 = s.goNext(); // 2027-01
