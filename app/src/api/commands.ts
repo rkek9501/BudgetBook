@@ -22,7 +22,7 @@ export interface PeriodData {
   fixedAmounts: FixedAmount[];
 }
 export interface Bootstrap { settings: Settings; categories: Category[]; isFresh: boolean }
-export interface DbStatus { ok: boolean; error: string | null }
+export interface DbStatus { ok: boolean; error: string | null; backupError: string | null }
 export interface NewCategory { name: string; color: string }
 export interface NewExpense { date: DateStr; description: string; amount: number; categoryId: number }
 export interface ExpenseUpdate { id: string; description: string; amount: number; categoryId: number }
@@ -65,6 +65,7 @@ async function call<T>(cmd: string, args?: Record<string, unknown>): Promise<T> 
 
 export const dbStatus = () => call<DbStatus>('db_status');
 export const retryOpen = () => call<DbStatus>('retry_open');
+export const runDailyBackup = () => call<void>('run_daily_backup');
 export const bootstrap = () => call<Bootstrap>('bootstrap');
 export const seedDefaultCategories = (categories: NewCategory[]) =>
   call<Category[]>('seed_default_categories', { categories });

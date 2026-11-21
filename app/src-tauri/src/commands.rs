@@ -17,6 +17,8 @@ pub struct AppState {
     pub db_path: PathBuf,
     pub backup_dir: PathBuf,
     pub open_error: Mutex<Option<String>>,
+    /// 마지막 자동 백업 실패 메시지(성공하면 None). 앱 사용은 막지 않고 화면에 알린다.
+    pub backup_error: Mutex<Option<String>>,
 }
 
 impl AppState {
@@ -25,12 +27,14 @@ impl AppState {
     pub fn initialize(data_dir: PathBuf) -> AppState {
         let db_path = data_dir.join("budgetbook.db");
         let backup_dir = data_dir.join("backups");
+        let mut backup_error = None;
         let (conn, open_error) = match fs::create_dir_all(&backup_dir) {
             Err(e) => (None, Some(format!("데이터 폴더를 만들 수 없습니다: {e}"))),
             Ok(()) => match db::open(&db_path) {
                 Ok(conn) => {
                     if let Err(e) = backup::daily_backup(&conn, &backup_dir) {
                         eprintln!("daily backup failed: {e}");
+                        backup_error = Some(e.to_string());
                     }
                     (Some(conn), None)
                 }
@@ -42,6 +46,7 @@ impl AppState {
             db_path,
             backup_dir,
             open_error: Mutex::new(open_error),
+            backup_error: Mutex::new(backup_error),
         }
     }
 }
@@ -70,12 +75,14 @@ fn status(state: &AppState) -> DbStatus {
         return DbStatus {
             ok: true,
             error: None,
+            backup_error: lock(&state.backup_error).clone(),
         };
     }
     let error = lock(&state.open_error).clone();
     DbStatus {
         ok: false,
         error: Some(error.unwrap_or_else(|| "데이터베이스를 열 수 없습니다.".into())),
+        backup_error: None,
     }
 }
 
@@ -89,9 +96,14 @@ pub fn retry_open_impl(state: &AppState) -> AppResult<DbStatus> {
         if guard.is_none() {
             match db::open(&state.db_path) {
                 Ok(conn) => {
-                    if let Err(e) = backup::daily_backup(&conn, &state.backup_dir) {
-                        eprintln!("daily backup failed: {e}");
-                    }
+                    *lock(&state.backup_error) =
+                        match backup::daily_backup(&conn, &state.backup_dir) {
+                            Ok(_) => None,
+                            Err(e) => {
+                                eprintln!("daily backup failed: {e}");
+                                Some(e.to_string())
+                            }
+                        };
                     *guard = Some(conn);
                     *lock(&state.open_error) = None;
                 }
@@ -102,6 +114,15 @@ pub fn retry_open_impl(state: &AppState) -> AppResult<DbStatus> {
         }
     }
     Ok(status(state))
+}
+
+/// 앱을 켜 둔 채 날짜가 바뀔 때 호출한다. 그날 백업이 있으면 아무것도 하지 않는다.
+pub fn run_daily_backup_impl(state: &AppState) -> AppResult<()> {
+    with_db(state, |conn| {
+        let result = backup::daily_backup(conn, &state.backup_dir).map(|_| ());
+        *lock(&state.backup_error) = result.as_ref().err().map(|e| e.to_string());
+        result
+    })
 }
 
 pub fn bootstrap_impl(state: &AppState) -> AppResult<Bootstrap> {
@@ -256,6 +277,11 @@ pub fn retry_open(state: State<AppState>) -> AppResult<DbStatus> {
     retry_open_impl(&state)
 }
 #[tauri::command]
+pub fn run_daily_backup(state: State<AppState>) -> AppResult<()> {
+    run_daily_backup_impl(&state)
+}
+
+#[tauri::command]
 pub fn bootstrap(state: State<AppState>) -> AppResult<Bootstrap> {
     bootstrap_impl(&state)
 }
@@ -379,6 +405,7 @@ mod tests {
             db_path: PathBuf::from("none.db"),
             backup_dir: PathBuf::from("none-backups"),
             open_error: Mutex::new(Some("boom".into())),
+            backup_error: Mutex::new(None),
         }
     }
 
@@ -451,6 +478,62 @@ mod tests {
         *s.open_error.lock().unwrap() = Some("x".into());
         assert!(retry_open_impl(&s).unwrap().ok);
         assert!(s.open_error.lock().unwrap().is_none());
+    }
+
+    fn broken_backup_dir(dir: &std::path::Path) -> PathBuf {
+        let blocker = dir.join("blocker");
+        fs::write(&blocker, b"file").unwrap();
+        blocker.join("backups")
+    }
+
+    #[test]
+    fn initialize_success_has_no_backup_error() {
+        let (_d, s) = open_state();
+        assert!(s.backup_error.lock().unwrap().is_none());
+        assert_eq!(db_status_impl(&s).backup_error, None);
+    }
+
+    #[test]
+    fn retry_open_records_backup_error_and_clears_it() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut s = AppState::initialize(dir.path().to_path_buf());
+        let good = s.backup_dir.clone();
+        s.backup_dir = broken_backup_dir(dir.path());
+        *s.db.lock().unwrap() = None;
+        let st = retry_open_impl(&s).unwrap();
+        assert!(st.ok);
+        assert!(st.backup_error.is_some());
+        s.backup_dir = good;
+        *s.db.lock().unwrap() = None;
+        let st = retry_open_impl(&s).unwrap();
+        assert_eq!(st.backup_error, None);
+    }
+
+    #[test]
+    fn run_daily_backup_records_result() {
+        let (d, mut s) = open_state();
+        let good = s.backup_dir.clone();
+        // 시작 때 이미 오늘 백업이 있으므로 no-op
+        let before = backup::list(&good).unwrap().len();
+        run_daily_backup_impl(&s).unwrap();
+        assert_eq!(backup::list(&good).unwrap().len(), before);
+        // 오늘 백업이 없고 폴더가 막혀 있으면 실패를 기록한다
+        s.backup_dir = broken_backup_dir(d.path());
+        assert!(run_daily_backup_impl(&s).is_err());
+        assert!(db_status_impl(&s).backup_error.is_some());
+        // 복구되면 성공으로 지워진다
+        s.backup_dir = d.path().join("fresh-backups");
+        run_daily_backup_impl(&s).unwrap();
+        assert_eq!(db_status_impl(&s).backup_error, None);
+        assert_eq!(backup::list(&s.backup_dir).unwrap().len(), 1);
+    }
+
+    #[test]
+    fn run_daily_backup_fails_when_db_closed() {
+        assert_eq!(
+            run_daily_backup_impl(&closed_state()).unwrap_err().code(),
+            "db_unavailable"
+        );
     }
 
     #[test]

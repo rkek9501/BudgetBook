@@ -68,7 +68,11 @@ model!(Settings {
     appearance: String
 });
 model!(Bootstrap { settings: Settings, categories: Vec<Category>, is_fresh: bool });
-model!(DbStatus { ok: bool, error: Option<String> });
+model!(DbStatus {
+    ok: bool,
+    error: Option<String>,
+    backup_error: Option<String>
+});
 model!(BackupInfo {
     file_name: String,
     created_at: String,

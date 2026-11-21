@@ -28,6 +28,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::db_status,
             commands::retry_open,
+            commands::run_daily_backup,
             commands::bootstrap,
             commands::seed_default_categories,
             commands::load_period,

@@ -21,6 +21,7 @@ export const MESSAGES = {
   emptyFixed: '등록된 고정 지출 항목이 없습니다.',
   noExpenseBlocked: '지출이 있는 날은 무지출로 표시할 수 없어요',
   lastCategory: '카테고리는 최소 1개가 있어야 해요.',
+  backupFailed: '자동 백업을 만들지 못했어요. 저장 공간과 백업 폴더를 확인해 주세요.',
   saveFailed: '저장하지 못했어요. 다시 시도해 주세요.',
   reloadFailed: '저장했지만 화면을 새로 고치지 못했어요. 다시 시도해 주세요.',
   importInvalid: '가져올 데이터에 올바르지 않은 값이 있어요.',

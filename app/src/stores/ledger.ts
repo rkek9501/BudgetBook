@@ -96,6 +96,7 @@ export const useLedgerStore = defineStore('ledger', () => {
         dbError.value = status.error ?? 'unknown';
         return;
       }
+      if (status.backupError) toast.value = MESSAGES.backupFailed;
       const boot = await api.bootstrap();
       settings.load(boot.settings);
       categories.value = boot.isFresh
@@ -154,9 +155,17 @@ export const useLedgerStore = defineStore('ledger', () => {
   }
 
   // 날짜가 바뀌었으면 today만 갱신한다. 보던 달은 움직이지 않는다.
-  function refreshToday() {
+  // 날짜가 바뀐 순간에는 그날 자동 백업도 요청한다. 예외는 던지지 않는다.
+  async function refreshToday() {
+    if (dbError.value !== null) return;
     const t = todayKst();
-    if (t !== today.value) today.value = t;
+    if (t === today.value) return;
+    today.value = t;
+    try {
+      await api.runDailyBackup();
+    } catch (e) {
+      if (!failDb(e)) toast.value = MESSAGES.backupFailed;
+    }
   }
 
   async function onStartDayChanged(oldDay: number, newDay: number) {

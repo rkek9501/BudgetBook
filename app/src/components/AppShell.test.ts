@@ -45,8 +45,8 @@ describe('AppShell', () => {
 
   it('다시 시도 성공 → 실제 init이 dbError를 지워 오류 화면에서 슬롯으로 전환', async () => {
     vi.useRealTimers();
-    vi.mocked(api.retryOpen).mockResolvedValue({ ok: true, error: null });
-    vi.mocked(api.dbStatus).mockResolvedValue({ ok: true, error: null });
+    vi.mocked(api.retryOpen).mockResolvedValue({ ok: true, error: null, backupError: null });
+    vi.mocked(api.dbStatus).mockResolvedValue({ ok: true, error: null, backupError: null });
     vi.mocked(api.bootstrap).mockResolvedValue({
       settings: { accountingStartDay: 1, theme: 'macos', appearance: 'system' },
       categories: [{ id: 1, name: '식비', color: '#FCB9BA' }],

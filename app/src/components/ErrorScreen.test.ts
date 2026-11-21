@@ -40,7 +40,7 @@ describe('ErrorScreen', () => {
   });
 
   it('다시 시도 성공 시 init 호출', async () => {
-    vi.mocked(api.retryOpen).mockResolvedValue({ ok: true, error: null });
+    vi.mocked(api.retryOpen).mockResolvedValue({ ok: true, error: null, backupError: null });
     const { w, init } = setup();
     await btn(w, '다시 시도')!.trigger('click');
     await flushPromises();
@@ -48,7 +48,7 @@ describe('ErrorScreen', () => {
   });
 
   it('다시 시도 실패 시 init 없이 자세히 문구 갱신', async () => {
-    vi.mocked(api.retryOpen).mockResolvedValue({ ok: false, error: 'locked' });
+    vi.mocked(api.retryOpen).mockResolvedValue({ ok: false, error: 'locked', backupError: null });
     const { w, init } = setup();
     await btn(w, '다시 시도')!.trigger('click');
     await flushPromises();

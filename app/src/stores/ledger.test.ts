@@ -12,6 +12,7 @@ vi.mock('@/api/commands', () => {
   return {
     ApiError,
     dbStatus: vi.fn(),
+    runDailyBackup: vi.fn(),
     bootstrap: vi.fn(),
     seedDefaultCategories: vi.fn(),
     loadPeriod: vi.fn(),
@@ -37,7 +38,7 @@ const EMPTY = { expenses: [], noExpenseDays: [], notes: [], fixedAmounts: [] };
 const cats = [{ id: 1, name: '식비', color: '#FCB9BA' }];
 
 function setup(startDay = 1, isFresh = false) {
-  vi.mocked(api.dbStatus).mockResolvedValue({ ok: true, error: null });
+  vi.mocked(api.dbStatus).mockResolvedValue({ ok: true, error: null, backupError: null });
   vi.mocked(api.bootstrap).mockResolvedValue({
     settings: { accountingStartDay: startDay, theme: 'macos', appearance: 'system' },
     categories: cats,
@@ -72,7 +73,7 @@ describe('ledger store', () => {
   });
 
   it('DB를 열 수 없으면 dbError', async () => {
-    vi.mocked(api.dbStatus).mockResolvedValue({ ok: false, error: 'locked' });
+    vi.mocked(api.dbStatus).mockResolvedValue({ ok: false, error: 'locked', backupError: null });
     const s = useLedgerStore();
     await s.init();
     expect(s.dbError).toBe('locked');
@@ -164,6 +165,57 @@ describe('ledger store', () => {
     expect(s.today).toBe('2026-11-16');
     expect(s.viewMonth).toBe('2026-11');
     expect(s.selectedDate).toBe('2026-11-15');
+  });
+
+  it('시작 때 자동 백업 실패가 보고되면 토스트로 알리고 앱은 계속 쓴다', async () => {
+    setup();
+    vi.mocked(api.dbStatus).mockResolvedValue({ ok: true, error: null, backupError: 'disk full' });
+    const s = useLedgerStore();
+    await s.init();
+    expect(s.toast).toBe(MESSAGES.backupFailed);
+    expect(s.dbError).toBeNull();
+    expect(s.ready).toBe(true);
+  });
+
+  it('날짜가 바뀌면 자동 백업을 요청한다', async () => {
+    setup();
+    vi.mocked(api.runDailyBackup).mockResolvedValue(undefined);
+    const s = useLedgerStore();
+    await s.init();
+    await s.refreshToday();
+    expect(api.runDailyBackup).not.toHaveBeenCalled();
+    setNowProvider(kst('2026-11-16T00:01:00'));
+    await s.refreshToday();
+    expect(api.runDailyBackup).toHaveBeenCalledTimes(1);
+    expect(s.toast).toBeNull();
+    await s.refreshToday();
+    expect(api.runDailyBackup).toHaveBeenCalledTimes(1);
+  });
+
+  it('날짜 변경 백업이 실패하면 토스트, db_unavailable이면 오류 화면, 예외는 던지지 않는다', async () => {
+    setup();
+    const s = useLedgerStore();
+    await s.init();
+    vi.mocked(api.runDailyBackup).mockRejectedValue(new Error('io'));
+    setNowProvider(kst('2026-11-16T00:01:00'));
+    await expect(s.refreshToday()).resolves.toBeUndefined();
+    expect(s.toast).toBe(MESSAGES.backupFailed);
+    s.clearToast();
+    vi.mocked(api.runDailyBackup).mockRejectedValue(new api.ApiError('db_unavailable', 'closed'));
+    setNowProvider(kst('2026-11-17T00:01:00'));
+    await s.refreshToday();
+    expect(s.dbError).toBe('closed');
+    expect(s.toast).toBeNull();
+  });
+
+  it('dbError 중에는 날짜가 바뀌어도 백업을 요청하지 않는다', async () => {
+    setup();
+    const s = useLedgerStore();
+    await s.init();
+    s.dbError = 'x';
+    setNowProvider(kst('2026-11-16T00:01:00'));
+    await s.refreshToday();
+    expect(api.runDailyBackup).not.toHaveBeenCalled();
   });
 
   it('추가 실패 시 false와 저장 실패 문구', async () => {
