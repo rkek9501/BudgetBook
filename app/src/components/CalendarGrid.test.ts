@@ -13,7 +13,7 @@ function setup(sel: string | null = null) {
   ledger.viewMonth = '2026-11';
   ledger.period = { start: '2026-10-25', end: '2026-11-24' };
   ledger.selectedDate = sel;
-  const w = mount(CalendarGrid, { global: { plugins: [pinia] } });
+  const w = mount(CalendarGrid, { global: { plugins: [pinia] }, attachTo: document.body });
   return { w, ledger };
 }
 
@@ -66,5 +66,16 @@ describe('CalendarGrid', () => {
     const { w } = setup('2026-11-20');
     expect(w.findAll('.day-cell.today')).toHaveLength(1);
     expect(w.findAll('.day-cell.selected')).toHaveLength(1);
+  });
+});
+
+describe('CalendarGrid 포커스', () => {
+  it('날짜 칸을 클릭하면 격자가 포커스를 받고, 방향키가 이어서 동작', async () => {
+    const { w, ledger } = setup();
+    await w.findAll('.day-cell')[3].trigger('click');
+    expect(document.activeElement).toBe(w.find('.grid').element);
+    await w.find('.grid').trigger('keydown', { key: 'ArrowRight' });
+    expect(ledger.selectedDate).toBe('2026-10-29');
+    w.unmount();
   });
 });

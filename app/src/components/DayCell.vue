@@ -68,7 +68,10 @@ const label = computed(() => {
     :aria-pressed="isSelected"
     tabindex="-1"
   >
-    <span class="day-num" :class="dayClass">{{ dayNum }}</span>
+    <span class="head">
+      <span class="day-num" :class="dayClass">{{ dayNum }}</span>
+      <span v-if="cell.total > 0" class="total amount">{{ formatWon(cell.total) }}원</span>
+    </span>
     <span ref="chipArea" class="chips">
       <template v-if="cell.expenses.length > 0">
         <span v-for="c in chips" :key="c.e.id" class="chip" :style="c.style">
@@ -79,7 +82,6 @@ const label = computed(() => {
       </template>
       <span v-else-if="cell.noExpense" class="stamp-wrap"><NoExpenseStamp /></span>
     </span>
-    <span v-if="cell.total > 0" class="total amount">{{ formatWon(cell.total) }}원</span>
   </button>
 </template>
 
@@ -89,7 +91,8 @@ const label = computed(() => {
   flex-direction: column;
   min-width: 0;
   min-height: 0;
-  padding: var(--space-2) var(--space-2) var(--space-1);
+  padding: var(--space-1) var(--space-2);
+  overflow: hidden;
   text-align: left;
   background: var(--surface);
   border: 1px solid var(--border);
@@ -103,15 +106,22 @@ const label = computed(() => {
   border-color: var(--selected-ring);
   box-shadow: 0 0 0 1px var(--selected-ring);
 }
+.head {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-1);
+  height: 22px;
+  margin-bottom: 2px;
+}
 .day-num {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  align-self: flex-start;
   flex: none;
-  min-width: 24px;
-  height: 24px;
-  margin-bottom: var(--space-1);
+  min-width: 22px;
+  height: 22px;
   padding: 0 var(--space-1);
   font-size: 13px;
   font-weight: 600;
@@ -175,11 +185,12 @@ const label = computed(() => {
   min-height: 0;
 }
 .total {
-  flex: none;
-  padding-top: var(--space-1);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: 12px;
   font-weight: 600;
-  text-align: right;
   color: var(--text-muted);
 }
 </style>

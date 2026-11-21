@@ -76,7 +76,7 @@ describe('DayCell', () => {
 
   it('합계 표시와 aria-label, 0이면 합계 숨김', () => {
     const w = mountCell(cell(2));
-    expect(w.find('.total').text()).toBe('3,000원');
+    expect(w.find('.head .total').text()).toBe('3,000원');
     expect(w.attributes('aria-label')).toBe('11월 15일, 지출 3,000원');
     expect(mountCell(cell(0)).find('.total').exists()).toBe(false);
   });

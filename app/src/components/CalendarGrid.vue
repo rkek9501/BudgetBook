@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import { addDays } from '@/domain/dates';
 import { calendarLayout } from '@/domain/period';
 import { useLedgerStore } from '@/stores/ledger';
@@ -7,6 +7,13 @@ import DayCell from './DayCell.vue';
 
 const ledger = useLedgerStore();
 const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
+const gridEl = ref<HTMLElement | null>(null);
+
+// WebKit은 클릭해도 버튼에 포커스를 주지 않으므로, 방향키가 동작하도록 격자로 포커스를 옮긴다.
+function onCellClick(date: string) {
+  ledger.select(date);
+  gridEl.value?.focus({ preventScroll: true });
+}
 
 // 각 행은 7칸. 기간 밖은 null(빈칸).
 const rows = computed(() => {
@@ -41,7 +48,7 @@ function onKeydown(ev: KeyboardEvent) {
         :class="{ sun: i === 0, sat: i === 6 }"
       >{{ w }}</span>
     </div>
-    <div class="grid" tabindex="0" role="group" aria-label="달력" @keydown="onKeydown">
+    <div ref="gridEl" class="grid" tabindex="0" role="group" aria-label="달력" @keydown="onKeydown">
       <div v-for="(row, r) in rows" :key="r" class="week-row">
         <template v-for="(cell, i) in row" :key="cell ? cell.date : `b${r}-${i}`">
           <DayCell
@@ -50,7 +57,7 @@ function onKeydown(ev: KeyboardEvent) {
             :categories="ledger.categories"
             :is-today="cell.date === ledger.today"
             :is-selected="cell.date === ledger.selectedDate"
-            @click="ledger.select(cell.date)"
+            @click="onCellClick(cell.date)"
           />
           <div v-else class="blank" aria-hidden="true" />
         </template>
