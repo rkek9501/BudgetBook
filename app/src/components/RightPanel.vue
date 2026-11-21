@@ -2,6 +2,9 @@
 import { computed } from 'vue';
 import { useLedgerStore } from '@/stores/ledger';
 import DayTab from './DayTab.vue';
+import SummaryTab from './SummaryTab.vue';
+
+defineEmits<{ (e: 'open-fixed'): void }>();
 
 const ledger = useLedgerStore();
 
@@ -50,7 +53,9 @@ const summaryLabel = computed(() => `${Number(ledger.viewMonth.split('-')[1])}�
       <DayTab v-if="ledger.selectedDate !== null" :date="ledger.selectedDate" />
       <p v-else class="empty">달력에서 날짜를 고르세요.</p>
     </div>
-    <div v-else id="panel-summary" class="panel" role="tabpanel" aria-labelledby="tab-summary" />
+    <div v-else id="panel-summary" class="panel" role="tabpanel" aria-labelledby="tab-summary">
+      <SummaryTab @open-fixed="$emit('open-fixed')" />
+    </div>
   </aside>
 </template>
 

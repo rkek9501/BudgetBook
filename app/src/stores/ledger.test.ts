@@ -215,6 +215,16 @@ describe('ledger store', () => {
     expect(api.loadPeriod).not.toHaveBeenCalled();
   });
 
+  it('메모 저장은 지정한 달로 저장하고, 보는 달이 다르면 로컬에 합치지 않음', async () => {
+    setup();
+    const s = useLedgerStore();
+    await s.init();
+    vi.mocked(api.saveNote).mockResolvedValue(undefined);
+    expect(await s.saveNote(1, 'x', '2026-10')).toBe(true);
+    expect(api.saveNote).toHaveBeenCalledWith('2026-10', 1, 'x');
+    expect(s.data.notes).toEqual([]);
+  });
+
   it('refreshCategories는 카테고리를 교체한다', async () => {
     setup();
     const s = useLedgerStore();

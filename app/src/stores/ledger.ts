@@ -192,8 +192,12 @@ export const useLedgerStore = defineStore('ledger', () => {
   const setNoExpense = (date: DateStr, on: boolean) => write(() => api.setNoExpenseDay(date, on));
 
   // 입력 중인 텍스트 영역을 흔들지 않도록 다시 불러오지 않고 로컬만 갱신한다.
-  async function saveNote(categoryId: number, note: string): Promise<boolean> {
-    const month = viewMonth.value;
+  // month는 메모를 입력한 달이다. 보는 달이 바뀐 뒤에도 입력한 달에 저장한다.
+  async function saveNote(
+    categoryId: number,
+    note: string,
+    month: MonthStr = viewMonth.value,
+  ): Promise<boolean> {
     try {
       await api.saveNote(month, categoryId, note);
     } catch (e) {

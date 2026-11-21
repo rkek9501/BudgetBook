@@ -3,7 +3,7 @@ import CalendarGrid from './CalendarGrid.vue';
 import RightPanel from './RightPanel.vue';
 import Toolbar from './Toolbar.vue';
 
-defineEmits<{ (e: 'open-settings'): void }>();
+defineEmits<{ (e: 'open-settings'): void; (e: 'open-fixed'): void }>();
 </script>
 
 <template>
@@ -12,7 +12,7 @@ defineEmits<{ (e: 'open-settings'): void }>();
       <Toolbar @open-settings="$emit('open-settings')" />
       <CalendarGrid />
     </section>
-    <RightPanel />
+    <RightPanel @open-fixed="$emit('open-fixed')" />
   </div>
 </template>
 
