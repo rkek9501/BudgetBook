@@ -1,8 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
-import { mount } from '@vue/test-utils';
+import { flushPromises, mount } from '@vue/test-utils';
+import * as api from '@/api/commands';
 
 vi.mock('@/api/commands', () => ({
+  dbStatus: vi.fn(),
+  bootstrap: vi.fn(),
+  loadPeriod: vi.fn(),
   retryOpen: vi.fn(),
   listBackups: vi.fn().mockResolvedValue([]),
   restoreBackup: vi.fn(),
@@ -37,6 +41,29 @@ describe('AppShell', () => {
     await w.vm.$nextTick();
     expect(w.find('#body').exists()).toBe(false);
     expect(w.text()).toContain('가계부 데이터를 열 수 없어요');
+  });
+
+  it('다시 시도 성공 → 실제 init이 dbError를 지워 오류 화면에서 슬롯으로 전환', async () => {
+    vi.useRealTimers();
+    vi.mocked(api.retryOpen).mockResolvedValue({ ok: true, error: null });
+    vi.mocked(api.dbStatus).mockResolvedValue({ ok: true, error: null });
+    vi.mocked(api.bootstrap).mockResolvedValue({
+      settings: { accountingStartDay: 1, theme: 'macos', appearance: 'system' },
+      categories: [{ id: 1, name: '식비', color: '#FCB9BA' }],
+      isFresh: false,
+    } as never);
+    vi.mocked(api.loadPeriod).mockResolvedValue({
+      expenses: [], noExpenseDays: [], notes: [], fixedAmounts: [],
+    });
+    const { w, ledger } = setup();
+    ledger.ready = true;
+    ledger.dbError = 'broken';
+    await w.vm.$nextTick();
+    expect(w.find('#body').exists()).toBe(false);
+    await w.findAll('button').find((b) => b.text() === '다시 시도')!.trigger('click');
+    await flushPromises();
+    expect(ledger.dbError).toBeNull();
+    expect(w.find('#body').exists()).toBe(true);
   });
 
   it('1분마다·포커스 시 refreshToday, 언마운트하면 정리', () => {

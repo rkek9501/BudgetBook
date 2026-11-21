@@ -28,7 +28,10 @@ export function useAppearance() {
   watchEffect(() => {
     const value = settings.appearance === 'system' ? null : settings.appearance;
     // 창 테마 적용 실패(권한·비Tauri 환경)는 화면 표시에 영향이 없으므로 무시한다.
-    Promise.resolve(getCurrentWindow().setTheme(value)).catch(() => {});
+    // getCurrentWindow()는 Tauri 밖에서 동기적으로 던질 수 있어 then 안에서 호출한다.
+    Promise.resolve()
+      .then(() => getCurrentWindow().setTheme(value))
+      .catch(() => {});
   });
 
   return { resolved };

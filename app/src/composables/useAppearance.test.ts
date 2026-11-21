@@ -1,10 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
 import { defineComponent, nextTick } from 'vue';
-import { mount } from '@vue/test-utils';
+import { flushPromises, mount } from '@vue/test-utils';
 
 const setTheme = vi.fn().mockResolvedValue(undefined);
-vi.mock('@tauri-apps/api/window', () => ({ getCurrentWindow: () => ({ setTheme }) }));
+vi.mock('@tauri-apps/api/window', () => ({ getCurrentWindow: vi.fn(() => ({ setTheme })) }));
+import { getCurrentWindow } from '@tauri-apps/api/window';
 vi.mock('@/api/commands', () => ({ setSetting: vi.fn() }));
 
 import { useSettingsStore } from '@/stores/settings';
@@ -82,6 +83,23 @@ describe('useAppearance', () => {
     settings.theme = 'diary';
     await nextTick();
     expect(html().dataset.theme).toBe('diary');
+  });
+
+  it('getCurrentWindow가 동기적으로 던져도 예외 없이 html 속성은 설정된다', async () => {
+    vi.mocked(getCurrentWindow).mockImplementationOnce(() => {
+      throw new Error('no tauri');
+    });
+    mountIt();
+    await flushPromises();
+    expect(html().dataset.appearance).toBe('light');
+  });
+
+  it('setTheme이 reject돼도 예외 없이 html 속성은 설정된다', async () => {
+    setTheme.mockRejectedValueOnce(new Error('denied'));
+    mountIt();
+    await flushPromises();
+    expect(html().dataset.theme).toBe('macos');
+    expect(html().dataset.appearance).toBe('light');
   });
 
   it('언마운트하면 matchMedia 구독을 해제한다', () => {

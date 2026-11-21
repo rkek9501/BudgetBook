@@ -264,6 +264,14 @@ describe('ledger store', () => {
     expect(s.toast).toBe(MESSAGES.loadFailed);
   });
 
+  it('이전 dbError가 있어도 init이 성공하면 dbError가 null', async () => {
+    setup();
+    const s = useLedgerStore();
+    s.dbError = 'old';
+    await s.init();
+    expect(s.dbError).toBeNull();
+  });
+
   it('init 중 일반 오류도 dbError로 알린다', async () => {
     setup();
     vi.mocked(api.bootstrap).mockRejectedValue(new Error('broken'));

@@ -87,6 +87,7 @@ export const useLedgerStore = defineStore('ledger', () => {
   }
 
   async function init() {
+    dbError.value = null;
     try {
       const status = await api.dbStatus();
       if (!status.ok) {
