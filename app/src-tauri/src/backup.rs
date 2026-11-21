@@ -166,7 +166,13 @@ fn preserve_unopenable(db_path: &Path, dir: &Path) -> AppResult<()> {
         .ok_or_else(|| AppError::Io("DB 경로가 올바르지 않습니다.".into()))?
         .to_string_lossy()
         .into_owned();
-    let base = format!("unopenable-{}", now_stamp());
+    let stamp = now_stamp();
+    let mut base = format!("unopenable-{stamp}");
+    let mut n = 0;
+    while dir.join(format!("{base}.db")).exists() {
+        n += 1;
+        base = format!("unopenable-{stamp}-{n}");
+    }
     for (suffix, out_suffix) in [("", ""), ("-wal", "-wal"), ("-shm", "-shm")] {
         let src = db_path.with_file_name(format!("{file}{suffix}"));
         if src.exists() {
@@ -226,7 +232,11 @@ pub fn restore(
         return Err(AppError::NotFound("백업 파일을 찾을 수 없습니다.".into()));
     }
     if let Some(conn) = slot.as_ref() {
-        create_backup(conn, dir)?;
+        // VACUUM INTO가 실패하면(일부 페이지 손상 등) 연결이 열린 채로 바이트 복사로 보관한다.
+        // 먼저 닫으면 WAL이 원본에 합쳐져 원본이 바뀐다.
+        if create_backup(conn, dir).is_err() {
+            preserve_unopenable(db_path, dir)?;
+        }
     } else {
         preserve_unopenable(db_path, dir)?;
     }
@@ -468,6 +478,60 @@ mod tests {
         assert!(!d.path().join("test.db-shm").exists());
         let conn = db::open(&db_path).unwrap();
         assert_eq!(count(&conn), 1);
+    }
+
+    #[test]
+    fn restore_from_corrupted_open_connection_preserves_original() {
+        let d = tempfile::tempdir().unwrap();
+        let (_gd, good) = test_db();
+        let mut good = good;
+        let cat = categories::create(&good, "식비", "#112233").unwrap();
+        add_exp(&mut good, cat.id, "good");
+        let dir = d.path().join("backups");
+        let bk = create_backup(&good, &dir).unwrap();
+        let name = bk.file_name().unwrap().to_string_lossy().into_owned();
+        let db_path = d.path().join("live.db");
+        db::tests::make_corrupt_page_db(&db_path);
+        let original = std::fs::read(&db_path).unwrap();
+        // db::open를 거치지 않고 손상된 DB를 연결 슬롯에 넣는다
+        let conn = Connection::open(&db_path).unwrap();
+        assert!(create_backup(&conn, &dir.join("x")).is_err());
+        let mut slot = Some(conn);
+        restore(&mut slot, &db_path, &dir, &name).unwrap();
+        assert_eq!(count(slot.as_ref().unwrap()), 1);
+        let copies: Vec<String> = names(&dir)
+            .into_iter()
+            .filter(|n| n.starts_with("unopenable-") && n.ends_with(".db"))
+            .collect();
+        assert_eq!(copies.len(), 1, "{copies:?}");
+        assert_eq!(std::fs::read(dir.join(&copies[0])).unwrap(), original);
+    }
+
+    #[test]
+    fn preserve_unopenable_same_second_gets_suffix() {
+        let d = tempfile::tempdir().unwrap();
+        let db_path = d.path().join("x.db");
+        let dir = d.path().join("backups");
+        std::fs::write(&db_path, b"first").unwrap();
+        std::fs::write(d.path().join("x.db-wal"), b"wal1").unwrap();
+        preserve_unopenable(&db_path, &dir).unwrap();
+        std::fs::write(&db_path, b"second").unwrap();
+        std::fs::write(d.path().join("x.db-wal"), b"wal2").unwrap();
+        preserve_unopenable(&db_path, &dir).unwrap();
+        let mut mains: Vec<Vec<u8>> = names(&dir)
+            .into_iter()
+            .filter(|n| n.ends_with(".db"))
+            .map(|n| std::fs::read(dir.join(n)).unwrap())
+            .collect();
+        mains.sort();
+        assert_eq!(mains, vec![b"first".to_vec(), b"second".to_vec()]);
+        let mut wals: Vec<Vec<u8>> = names(&dir)
+            .into_iter()
+            .filter(|n| n.ends_with("-wal"))
+            .map(|n| std::fs::read(dir.join(n)).unwrap())
+            .collect();
+        wals.sort();
+        assert_eq!(wals, vec![b"wal1".to_vec(), b"wal2".to_vec()]);
     }
 
     #[test]

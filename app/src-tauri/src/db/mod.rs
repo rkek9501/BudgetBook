@@ -16,16 +16,21 @@ fn unavailable(e: impl std::fmt::Display) -> AppError {
 
 /// Opens (or creates, only if absent) the database. Never deletes, renames or
 /// overwrites an existing file; any failure is reported as `db_unavailable`.
+/// 기존 파일은 받아들이기 전(스키마 버전·손상 검사)에는 아무것도 쓰지 않는다.
 pub fn open(path: &Path) -> AppResult<Connection> {
+    let existed = path.exists();
     let mut flags = OpenFlags::SQLITE_OPEN_READ_WRITE
         | OpenFlags::SQLITE_OPEN_URI
         | OpenFlags::SQLITE_OPEN_NO_MUTEX;
-    if !path.exists() {
+    if !existed {
         flags |= OpenFlags::SQLITE_OPEN_CREATE;
     }
     let mut conn = Connection::open_with_flags(path, flags).map_err(unavailable)?;
     conn.pragma_update(None, "foreign_keys", "ON")
         .map_err(unavailable)?;
+    if existed {
+        check_existing(&conn)?;
+    }
     let mode: String = conn
         .query_row("PRAGMA journal_mode = WAL", [], |r| r.get(0))
         .map_err(unavailable)?;
@@ -37,6 +42,32 @@ pub fn open(path: &Path) -> AppResult<Connection> {
         other => unavailable(other),
     })?;
     Ok(conn)
+}
+
+/// 기존 DB 검사: 새 스키마 거부, quick_check로 손상 검출. 읽기만 한다.
+fn check_existing(conn: &Connection) -> AppResult<()> {
+    let version: i64 = conn
+        .query_row("PRAGMA user_version", [], |r| r.get(0))
+        .map_err(unavailable)?;
+    if version > LATEST_VERSION {
+        return Err(unavailable(format!(
+            "newer schema (user_version {version})"
+        )));
+    }
+    let mut stmt = conn.prepare("PRAGMA quick_check").map_err(unavailable)?;
+    let mut rows = stmt.query([]).map_err(unavailable)?;
+    let first: Option<String> = match rows.next() {
+        Ok(Some(r)) => Some(r.get(0).map_err(unavailable)?),
+        Ok(None) => None,
+        Err(e) => return Err(unavailable(format!("database file is damaged ({e})"))),
+    };
+    if first.as_deref() != Some("ok") {
+        return Err(unavailable(format!(
+            "database file is damaged (quick_check: {})",
+            first.unwrap_or_default()
+        )));
+    }
+    Ok(())
 }
 
 pub fn migrate(conn: &mut Connection) -> AppResult<()> {
@@ -56,7 +87,7 @@ pub fn migrate(conn: &mut Connection) -> AppResult<()> {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::test_util::test_db;
     use super::*;
     use rusqlite::Connection;
@@ -123,6 +154,63 @@ mod tests {
         let err = open(&path).unwrap_err();
         assert_eq!(err.code(), "db_unavailable");
         assert_eq!(std::fs::read(&path).unwrap(), bytes);
+    }
+
+    /// 5000행을 쓰고 체크포인트한 뒤 데이터 페이지 하나를 망가뜨린 DB를 만든다.
+    pub(crate) fn make_corrupt_page_db(path: &Path) {
+        {
+            let c = Connection::open(path).unwrap();
+            c.query_row("PRAGMA journal_mode = WAL", [], |r| r.get::<_, String>(0))
+                .unwrap();
+            c.execute_batch(
+                "CREATE TABLE categories(id INTEGER PRIMARY KEY, name TEXT);
+                 CREATE TABLE expenses(id TEXT PRIMARY KEY, date TEXT, description TEXT, amount INTEGER, category_id INTEGER);",
+            )
+            .unwrap();
+            c.pragma_update(None, "user_version", 1).unwrap();
+            let tx = c.unchecked_transaction().unwrap();
+            for i in 0..5000 {
+                tx.execute(
+                    "INSERT INTO expenses VALUES (?1, '2026-11-01', 'some description text here', 1000, 1)",
+                    [format!("id-{i:06}-xxxxxxxxxxxxxxxxxxxxxxxx")],
+                )
+                .unwrap();
+            }
+            tx.commit().unwrap();
+            c.execute_batch("PRAGMA wal_checkpoint(TRUNCATE);").unwrap();
+        }
+        let mut bytes = std::fs::read(path).unwrap();
+        let target = 4096 * 40;
+        for b in &mut bytes[target..target + 4096] {
+            *b = 0xAB;
+        }
+        std::fs::write(path, &bytes).unwrap();
+    }
+
+    #[test]
+    fn corrupted_page_is_unavailable_and_untouched() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("c.db");
+        make_corrupt_page_db(&path);
+        let before = std::fs::read(&path).unwrap();
+        let err = open(&path).unwrap_err();
+        assert_eq!(err.code(), "db_unavailable");
+        assert_eq!(std::fs::read(&path).unwrap(), before);
+        assert!(!dir.path().join("c.db-wal").exists());
+    }
+
+    #[test]
+    fn newer_schema_non_wal_file_is_untouched() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("n.db");
+        {
+            let c = Connection::open(&path).unwrap();
+            c.execute_batch("CREATE TABLE t(x);").unwrap();
+            c.pragma_update(None, "user_version", 99).unwrap();
+        }
+        let before = std::fs::read(&path).unwrap();
+        assert_eq!(open(&path).unwrap_err().code(), "db_unavailable");
+        assert_eq!(std::fs::read(&path).unwrap(), before);
     }
 
     #[test]
