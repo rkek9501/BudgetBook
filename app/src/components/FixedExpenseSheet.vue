@@ -132,7 +132,7 @@ async function save() {
 </script>
 
 <template>
-  <Sheet :open="true" title="고정 지출" @close="emit('close')">
+  <Sheet :open="true" title="고정 지출" :busy="saving" @close="emit('close')">
     <div class="month-nav">
       <button type="button" class="icon-btn" aria-label="이전 달" @click="move(-1)">‹</button>
       <span class="month-title">{{ formatMonthTitle(month) }}</span>
@@ -186,7 +186,7 @@ async function save() {
     <p v-if="saveError" class="save-error error" role="alert">{{ saveError }}</p>
 
     <div class="actions">
-      <button type="button" class="btn" @click="emit('close')">취소</button>
+      <button type="button" class="btn" :disabled="saving" @click="emit('close')">취소</button>
       <button type="button" class="btn primary" :disabled="!loaded || saving" @click="save">저장</button>
     </div>
 

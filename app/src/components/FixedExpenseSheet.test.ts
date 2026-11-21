@@ -139,4 +139,37 @@ describe('FixedExpenseSheet', () => {
     expect(document.body.textContent).toContain(MESSAGES.emptyFixed);
     w.unmount();
   });
+
+  it('저장 중에는 취소·Esc로 닫히지 않고, 성공하면 saved', async () => {
+    const w = await setup();
+    let resolve!: () => void;
+    vi.mocked(api.saveFixed).mockReturnValue(new Promise<void>((r) => { resolve = r; }) as never);
+    btn('저장').click();
+    await flushPromises();
+    expect((btn('취소') as HTMLButtonElement).disabled).toBe(true);
+    btn('취소').click();
+    q('[role=dialog]')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+    await flushPromises();
+    expect(w.emitted('close')).toBeUndefined();
+    resolve();
+    await flushPromises();
+    expect(w.emitted('saved')).toHaveLength(1);
+    w.unmount();
+  });
+
+  it('저장 중 실패하면 실패 문구를 보이고 시트는 열려 있음', async () => {
+    const w = await setup();
+    let reject!: (e: Error) => void;
+    vi.mocked(api.saveFixed).mockReturnValue(new Promise<void>((_, r) => { reject = r; }) as never);
+    btn('저장').click();
+    await flushPromises();
+    q('[role=dialog]')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+    reject(new Error('x'));
+    await flushPromises();
+    expect(w.emitted('close')).toBeUndefined();
+    expect(q('.save-error')!.textContent).toBe(MESSAGES.saveFailed);
+    expect(q('[role=dialog]')).not.toBeNull();
+    expect((btn('취소') as HTMLButtonElement).disabled).toBe(false);
+    w.unmount();
+  });
 });

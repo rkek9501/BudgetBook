@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
-const props = defineProps<{ open: boolean; title: string }>();
+const props = defineProps<{ open: boolean; title: string; busy?: boolean }>();
 const emit = defineEmits<{ (e: 'close'): void }>();
 
 const dialog = ref<HTMLElement | null>(null);
@@ -44,7 +44,9 @@ onBeforeUnmount(() => {
 function onKeydown(e: KeyboardEvent) {
   // 안쪽 확인 대화상자가 이미 처리한 키는 무시한다.
   if (e.defaultPrevented) return;
-  if (e.key === 'Escape') {
+  if (e.key === 'Escape' && props.busy) {
+    e.preventDefault();
+  } else if (e.key === 'Escape') {
     e.preventDefault();
     emit('close');
   } else if (e.key === 'Tab') {
