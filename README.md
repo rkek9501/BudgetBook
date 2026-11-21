@@ -69,5 +69,5 @@ npm run tauri build -- --target aarch64-apple-darwin --bundles app # Mac 빌드 
 
 ## 데이터 위치 (Mac)
 
-- DB: `~/Library/Application Support/com.budgetbook.desktop/budgetbook.db` (번들 ID `com.budgetbook.desktop`은 임시 값)
+- DB: `~/Library/Application Support/com.budgetbook.desktop/budgetbook.db`
 - 자동 백업: 같은 폴더의 `backups/` (하루 1회, 최근 14개 보관)

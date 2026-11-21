@@ -51,5 +51,5 @@ Mac에서 빌드·설치한 앱이 제대로 동작하는지 확인하는 목록
 
 ## 참고
 
-- 번들 ID `com.budgetbook.desktop`은 임시 값입니다. `app/src-tauri/tauri.conf.json`의 `identifier`를 바꾸면 데이터 폴더가 달라져 기존 데이터가 보이지 않으니, 바꿀 때는 폴더를 함께 옮기세요.
+- 번들 ID는 `com.budgetbook.desktop`으로 확정했습니다. `app/src-tauri/tauri.conf.json`의 `identifier`를 바꾸면 데이터 폴더가 달라져 기존 데이터가 보이지 않으니 바꾸지 마세요.
 - 문제가 있으면 확인한 항목과 증상을 그대로 알려 주세요.
