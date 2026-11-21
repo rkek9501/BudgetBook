@@ -66,6 +66,17 @@ describe('메뉴 id → 동작', () => {
     expect(w.find('.settings').attributes('data-tab')).toBe('general');
   });
 
+  it('tab-day: 다른 달을 보는 중 선택이 없으면 오늘을 고르지 않고 빈 상태의 날짜 탭', async () => {
+    const { ledger } = setupApp();
+    await flushPromises();
+    ledger.period = { start: '2000-01-01', end: '2000-01-31' };
+    ledger.selectedDate = null;
+    ledger.activeTab = 'summary';
+    h.menu!('tab-day');
+    expect(ledger.selectedDate).toBeNull();
+    expect(ledger.activeTab).toBe('day');
+  });
+
   it('import/export → 데이터 탭 + action, action-done에서 초기화', async () => {
     const { w } = setupApp();
     await flushPromises();
@@ -134,6 +145,38 @@ describe('useShortcuts', () => {
     expect(ledger.selectedDate).toBe(ledger.today);
     expect(ledger.activeTab).toBe('day');
     expect(ledger.focusTick).toBe(before + 1);
+  });
+
+  it('⌘N: 다른 달을 보다 선택이 없으면 오늘이 속한 달로 이동하고 오늘을 선택', () => {
+    const { ledger } = setup();
+    const goToday = vi.spyOn(ledger, 'goToday').mockImplementation(async () => {
+      ledger.selectedDate = ledger.today;
+      ledger.activeTab = 'day';
+    });
+    ledger.period = { start: '2000-01-01', end: '2000-01-31' };
+    ledger.selectedDate = null;
+    ledger.activeTab = 'summary';
+    const before = ledger.focusTick;
+    key('n');
+    expect(goToday).toHaveBeenCalledTimes(1);
+    expect(ledger.selectedDate).toBe(ledger.today);
+    expect(ledger.activeTab).toBe('day');
+    expect(ledger.focusTick).toBe(before + 1);
+  });
+
+  it('⌘N: 기간 밖 선택도 오늘로 이동, 기간 안 선택은 유지', () => {
+    const { ledger } = setup();
+    const goToday = vi.spyOn(ledger, 'goToday').mockResolvedValue();
+    ledger.period = { start: '2000-01-01', end: '2000-01-31' };
+    ledger.selectedDate = '2000-02-05';
+    key('n');
+    expect(goToday).toHaveBeenCalledTimes(1);
+    ledger.selectedDate = '2000-01-10';
+    ledger.activeTab = 'summary';
+    key('n');
+    expect(goToday).toHaveBeenCalledTimes(1);
+    expect(ledger.selectedDate).toBe('2000-01-10');
+    expect(ledger.activeTab).toBe('day');
   });
 
   it('⌘←/→ → 이전·다음 달, 입력칸에서는 가로채지 않음', () => {

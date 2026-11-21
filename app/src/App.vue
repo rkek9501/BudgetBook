@@ -44,7 +44,9 @@ async function onMenuId(id: string) {
       await ledger.goToday();
       break;
     case 'tab-day':
-      if (ledger.selectedDate === null) ledger.select(ledger.today);
+      if (ledger.selectedDate === null && ledger.today >= ledger.period.start && ledger.today <= ledger.period.end) {
+        ledger.select(ledger.today);
+      }
       ledger.setTab('day');
       break;
     case 'tab-summary':

@@ -27,8 +27,13 @@ export function useShortcuts() {
     if (isImeKey(e) || dialogOpen()) return;
     if (e.key === 'n' || e.key === 'N') {
       e.preventDefault();
-      ledger.select(ledger.selectedDate ?? ledger.today);
-      ledger.setTab('day');
+      const sel = ledger.selectedDate;
+      if (sel !== null && sel >= ledger.period.start && sel <= ledger.period.end) {
+        ledger.select(sel);
+      } else {
+        // 선택이 없거나 보는 기간 밖이면 오늘이 속한 회계월로 이동한다(상태는 바로 바뀐다).
+        void ledger.goToday();
+      }
       ledger.requestDescriptionFocus();
     } else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
       if (isTextTarget(e.target)) return;
