@@ -46,6 +46,9 @@ function channel(v: number): number {
   return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
 }
 
+/** 카테고리를 찾을 수 없는 지출 칩에 쓰는 색. 글자색 계산(textColorFor)에 쓰이므로 CSS 변수가 아닌 상수다. */
+export const UNKNOWN_CATEGORY_COLOR = '#CCCCCC';
+
 /** WCAG 대비가 더 큰 글자색. */
 export function textColorFor(hex: string): '#000000' | '#FFFFFF' {
   const n = normalizeHex(hex);

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, nextTick, onMounted, ref } from 'vue';
 import Sheet from './Sheet.vue';
 import ConfirmDialog from './ConfirmDialog.vue';
 import { loadFixed, saveFixed } from '@/api/commands';
@@ -23,6 +23,11 @@ const addError = ref('');
 const saveError = ref('');
 const saving = ref(false);
 const deleting = ref<FixedItem | null>(null);
+const amountEls = new Map<string, HTMLInputElement>();
+const setAmountEl = (id: string, el: unknown) => {
+  if (el instanceof HTMLInputElement) amountEls.set(id, el);
+  else amountEls.delete(id);
+};
 
 const key = (id: string, m: MonthStr) => `${id}|${m}`;
 const getVal = (id: string, m: MonthStr) => values.value[key(id, m)] ?? '';
@@ -112,6 +117,12 @@ async function save() {
       if (!r.ok) {
         month.value = m;
         saveError.value = MESSAGES.fixedAmountInvalid(it.name);
+        // 달을 바꾼 화면이 그려진 뒤 그 칸에 포커스를 둔다.
+        void nextTick(() => {
+          const el = amountEls.get(it.id);
+          el?.focus();
+          el?.select();
+        });
         return;
       }
       amounts.push({ itemId: it.id, month: m, amount: r.value });
@@ -148,6 +159,7 @@ async function save() {
       <div v-for="it in items" :key="it.id" class="fixed-row">
         <span class="name">{{ it.name }}</span>
         <input
+          :ref="(el) => setAmountEl(it.id, el)"
           class="amount"
           type="text"
           inputmode="numeric"

@@ -236,6 +236,24 @@ describe('useShortcuts', () => {
     expect(ledger.focusTick).toBe(before + 1);
   });
 
+  it('⌘N: 한글 입력 상태에서 key가 자모여도 code가 KeyN이면 동작', () => {
+    const { ledger } = setup();
+    ledger.selectedDate = null;
+    ledger.activeTab = 'summary';
+    const e = key('ㅜ', window, { code: 'KeyN' });
+    expect(e.defaultPrevented).toBe(true);
+    expect(ledger.activeTab).toBe('day');
+  });
+
+  it('⌘N: 다른 배열의 문자 키(code만 KeyN)는 가로채지 않음', () => {
+    const { ledger } = setup();
+    ledger.activeTab = 'summary';
+    // 예: Dvorak에서 KeyN 자리의 'l'
+    const e = key('l', window, { code: 'KeyN' });
+    expect(e.defaultPrevented).toBe(false);
+    expect(ledger.activeTab).toBe('summary');
+  });
+
   it('⌘N: 다른 달을 보다 선택이 없으면 오늘이 속한 달로 이동하고 오늘을 선택', () => {
     const { ledger } = setup();
     const goToday = vi.spyOn(ledger, 'goToday').mockImplementation(async () => {

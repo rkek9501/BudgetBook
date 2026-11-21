@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
-import { textColorFor } from '@/domain/categories';
+import { textColorFor, UNKNOWN_CATEGORY_COLOR } from '@/domain/categories';
 import { weekday } from '@/domain/dates';
 import { formatWon } from '@/domain/money';
 import { fitChips, type DayCellData } from '@/domain/summary';
@@ -37,7 +37,7 @@ const catOf = computed(() => new Map(props.categories.map((c) => [c.id, c])));
 const fit = computed(() => fitChips(props.cell.expenses.length, availablePx.value, CHIP_PX, MORE_PX));
 const chips = computed(() =>
   props.cell.expenses.slice(0, fit.value.visible).map((e) => {
-    const color = catOf.value.get(e.categoryId)?.color ?? '#CCCCCC';
+    const color = catOf.value.get(e.categoryId)?.color ?? UNKNOWN_CATEGORY_COLOR;
     return { e, style: { backgroundColor: color, color: textColorFor(color) } };
   }),
 );

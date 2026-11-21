@@ -102,6 +102,8 @@ describe('FixedExpenseSheet', () => {
     await flushPromises();
     expect(api.saveFixed).not.toHaveBeenCalled();
     expect(q('.save-error')!.textContent).toBe(MESSAGES.fixedAmountInvalid('월세'));
+    // 잘못된 칸으로 달을 옮기고 그 칸에 포커스를 둔다(명세 §4.7)
+    expect(document.activeElement).toBe(amountInputs()[0]);
     expect(w.emitted('saved')).toBeUndefined();
     w.unmount();
   });

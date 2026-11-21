@@ -25,7 +25,9 @@ export function useShortcuts() {
     const mod = isMac() ? e.metaKey : e.ctrlKey;
     if (!mod || e.altKey || e.shiftKey) return;
     if (isImeKey(e) || dialogOpen()) return;
-    if (e.key === 'n' || e.key === 'N') {
+    // 한글 입력 상태에서는 key가 자모('ㅜ')로 올 수 있어, 영문자가 아닐 때만 물리 키(code)로 판정한다.
+    const isN = e.key === 'n' || e.key === 'N' || (!/^[A-Za-z]$/.test(e.key) && e.code === 'KeyN');
+    if (isN) {
       e.preventDefault();
       const sel = ledger.selectedDate;
       if (sel !== null && sel >= ledger.period.start && sel <= ledger.period.end) {

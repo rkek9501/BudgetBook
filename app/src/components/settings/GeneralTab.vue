@@ -44,9 +44,9 @@ function applyStartDay() {
 }
 
 const themes: { id: Theme; label: string; colors: [string, string, string] }[] = [
-  { id: 'macos', label: 'macOS 기본', colors: ['#f5f5f7', '#ffffff', '#0060df'] },
-  { id: 'diary', label: '따뜻한 다이어리', colors: ['#fff8e7', '#fbefd0', '#e28a00'] },
-  { id: 'mono', label: '미니멀 모노톤', colors: ['#f2f2f2', '#ffffff', '#222222'] },
+  { id: 'macos', label: 'macOS 기본', colors: ['var(--thumb-macos-bg)', 'var(--thumb-macos-surface)', 'var(--thumb-macos-accent)'] },
+  { id: 'diary', label: '따뜻한 다이어리', colors: ['var(--thumb-diary-bg)', 'var(--thumb-diary-surface)', 'var(--thumb-diary-accent)'] },
+  { id: 'mono', label: '미니멀 모노톤', colors: ['var(--thumb-mono-bg)', 'var(--thumb-mono-surface)', 'var(--thumb-mono-accent)'] },
 ];
 const appearances: { id: Appearance; label: string }[] = [
   { id: 'system', label: '시스템 따라감' },
