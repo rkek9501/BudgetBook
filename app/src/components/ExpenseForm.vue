@@ -34,6 +34,13 @@ function focusDescription() {
   descEl.value?.focus();
 }
 defineExpose({ focusDescription });
+watch(
+  () => ledger.focusTick,
+  async () => {
+    await nextTick();
+    focusDescription();
+  },
+);
 
 function onEnter(e: KeyboardEvent, next: () => void) {
   if (isImeKey(e)) return;

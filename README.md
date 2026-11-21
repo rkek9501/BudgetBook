@@ -2,7 +2,7 @@
 
 달력에서 바로 지출을 기록하는 macOS용 개인 가계부입니다. 월급일 같은 회계기간 시작일을 기준으로 한 달을 묶어 보여줍니다.
 
-> 상태: 설계 완료, 구현 전
+> 상태: 구현 완료, Mac 실기 확인 대기 ([Mac 확인 체크리스트](docs/mac-checklist.md))
 
 ## 주요 기능
 
@@ -31,9 +31,10 @@
 |---|---|
 | [설계 문서](docs/superpowers/specs/2026-11-15-mac-budgetbook-design.md) | 구현 기준. 화면 구조, 데이터 설계, 안전장치, 검증 방법 |
 | [기능 명세](docs/functional-spec.md) | 계산 규칙(회계기간·집계·정렬), 메시지, Windows 버전 데이터 형식 |
+| [Mac 확인 체크리스트](docs/mac-checklist.md) | Mac 빌드·실행·확인 순서 |
 | [기존 화면](docs/asis-screens/) | Windows 버전 화면 캡처 (디자인 개선 전 참고용) |
 
-## 프로젝트 구조 (예정)
+## 프로젝트 구조
 
 ```
 .
@@ -53,14 +54,15 @@
 
 본인용 앱이라 서명·공증 없이 Mac에서 직접 빌드합니다.
 
-## 명령어 (앱 생성 후)
+## 명령어
 
 ```bash
 cd app
-npm install
+npm ci
 npm run tauri dev                                    # 개발 실행
 npm test                                             # TypeScript 단위 테스트 (Vitest)
-(cd src-tauri && cargo test)                         # Rust 데이터 계층 테스트
+npm run build                                        # 타입 검사(vue-tsc) + 프런트 빌드
+(cd src-tauri && cargo test --lib)                   # Rust 데이터 계층 테스트
 npm run tauri build -- --target aarch64-apple-darwin # Mac 빌드 (Mac에서 실행)
 ```
 

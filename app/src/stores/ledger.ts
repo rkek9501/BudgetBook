@@ -40,6 +40,7 @@ export const useLedgerStore = defineStore('ledger', () => {
   const data = ref<PeriodData>(emptyData());
   const toast = ref<string | null>(null);
   const saving = ref(false);
+  const focusTick = ref(0);
 
   const sortedCategories = computed(() => sortCategories(categories.value));
   const dayCells = computed(() =>
@@ -213,14 +214,19 @@ export const useLedgerStore = defineStore('ledger', () => {
     return true;
   }
 
+  function requestDescriptionFocus() {
+    focusTick.value += 1;
+  }
+
   function clearToast() {
     toast.value = null;
   }
 
   return {
-    ready, dbError, categories, viewMonth, period, selectedDate, activeTab, data, today, toast, saving,
+    ready, dbError, categories, viewMonth, period, selectedDate, activeTab, data, today, toast, saving, focusTick,
     sortedCategories, dayCells, summary,
     init, reload, refreshCategories, goPrev, goNext, goToday, select, setTab, refreshToday,
     onStartDayChanged, addExpense, updateExpense, deleteExpense, setNoExpense, saveNote, clearToast,
+    requestDescriptionFocus,
   };
 });
