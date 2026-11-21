@@ -1,6 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { flushPromises, mount } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
+vi.mock('@/api/commands', async (orig) => ({
+  ...(await orig<object>()),
+  loadPeriod: vi.fn(async () => ({ expenses: [], noExpenseDays: [], notes: [], fixedAmounts: [] })),
+}));
+
 import SummaryTab from './SummaryTab.vue';
 import RightPanel from './RightPanel.vue';
 import { useLedgerStore } from '@/stores/ledger';
@@ -111,6 +116,38 @@ describe('SummaryTab', () => {
     await flushPromises();
     expect(save).toHaveBeenCalledWith(1, 'A달 메모', '2026-11');
     expect(w.find('textarea').exists()).toBe(false);
+  });
+
+  it('입력 직후 다음 달로 이동해도(기간·행 변경) 입력한 달로 한 번 저장', async () => {
+    const { ledger, w, save } = setup();
+    await w.findAll('button.category-row')[0].trigger('click');
+    await w.find('textarea').setValue('이동 전 메모');
+    await ledger.goNext();
+    await flushPromises();
+    vi.advanceTimersByTime(1000);
+    expect(save).toHaveBeenCalledTimes(1);
+    expect(save).toHaveBeenCalledWith(1, '이동 전 메모', '2026-11');
+  });
+
+  it('입력 직후 오늘로 이동해도 입력한 달로 한 번 저장', async () => {
+    vi.setSystemTime(new Date('2026-11-21T03:00:00Z'));
+    const { ledger, w, save } = setup();
+    ledger.viewMonth = '2026-10';
+    ledger.period = { start: '2026-10-01', end: '2026-10-31' };
+    ledger.data = {
+      expenses: [{ id: 'z', date: '2026-10-03', description: '점심', amount: 100, categoryId: 1 }],
+      noExpenseDays: [],
+      notes: [],
+      fixedAmounts: [],
+    };
+    await flushPromises();
+    await w.findAll('button.category-row')[0].trigger('click');
+    await w.find('textarea').setValue('10월 메모');
+    await ledger.goToday();
+    await flushPromises();
+    vi.advanceTimersByTime(1000);
+    expect(save).toHaveBeenCalledTimes(1);
+    expect(save).toHaveBeenCalledWith(1, '10월 메모', '2026-10');
   });
 
   it('언마운트 시 대기 중인 저장을 실행', async () => {

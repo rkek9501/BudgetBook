@@ -70,8 +70,8 @@ function onDraft(value: string) {
 const rowIds = computed(() => ledger.summary.rows.map((r) => r.category.id));
 watch(rowIds, (ids) => {
   if (expandedId.value !== null && !ids.includes(expandedId.value)) {
-    if (timer !== null) clearTimeout(timer);
-    timer = null;
+    // 달 이동으로 행이 바뀐 경우 입력 중인 메모를 먼저 저장한다(저장은 펼칠 때의 달 기준).
+    flush();
     dirty = false;
     expandedId.value = null;
     draft.value = '';
