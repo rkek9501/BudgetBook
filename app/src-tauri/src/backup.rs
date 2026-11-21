@@ -133,6 +133,49 @@ pub fn list(dir: &Path) -> AppResult<Vec<BackupInfo>> {
     Ok(out)
 }
 
+fn damaged() -> AppError {
+    AppError::InvalidInput("백업 파일이 손상되어 복원할 수 없습니다.".into())
+}
+
+/// The file must open read-only, have a known schema version and a readable expenses table.
+fn verify_usable(path: &Path) -> AppResult<()> {
+    let conn = Connection::open_with_flags(
+        path,
+        OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
+    )
+    .map_err(|_| damaged())?;
+    let version: i64 = conn
+        .query_row("PRAGMA user_version", [], |r| r.get(0))
+        .map_err(|_| damaged())?;
+    if !(1..=db::LATEST_VERSION).contains(&version) {
+        return Err(damaged());
+    }
+    conn.query_row("SELECT count(*) FROM expenses", [], |r| r.get::<_, i64>(0))
+        .map_err(|_| damaged())?;
+    Ok(())
+}
+
+/// Byte-for-byte copy of an unopenable live DB (and its -wal/-shm) next to the backups.
+fn preserve_unopenable(db_path: &Path, dir: &Path) -> AppResult<()> {
+    if !db_path.exists() {
+        return Ok(());
+    }
+    std::fs::create_dir_all(dir)?;
+    let file = db_path
+        .file_name()
+        .ok_or_else(|| AppError::Io("DB 경로가 올바르지 않습니다.".into()))?
+        .to_string_lossy()
+        .into_owned();
+    let base = format!("unopenable-{}", now_stamp());
+    for (suffix, out_suffix) in [("", ""), ("-wal", "-wal"), ("-shm", "-shm")] {
+        let src = db_path.with_file_name(format!("{file}{suffix}"));
+        if src.exists() {
+            std::fs::copy(&src, dir.join(format!("{base}.db{out_suffix}")))?;
+        }
+    }
+    Ok(())
+}
+
 fn restore_swap(db_path: &Path, backup: &Path) -> AppResult<()> {
     let file = db_path
         .file_name()
@@ -143,6 +186,10 @@ fn restore_swap(db_path: &Path, backup: &Path) -> AppResult<()> {
     if let Err(e) = std::fs::copy(backup, &tmp) {
         let _ = std::fs::remove_file(&tmp);
         return Err(e.into());
+    }
+    if let Err(e) = verify_usable(&tmp) {
+        let _ = std::fs::remove_file(&tmp);
+        return Err(e);
     }
     for suffix in ["-wal", "-shm"] {
         let side = db_path.with_file_name(format!("{file}{suffix}"));
@@ -180,6 +227,8 @@ pub fn restore(
     }
     if let Some(conn) = slot.as_ref() {
         create_backup(conn, dir)?;
+    } else {
+        preserve_unopenable(db_path, dir)?;
     }
     drop(slot.take());
     if let Err(e) = restore_swap(db_path, &backup) {
@@ -364,12 +413,94 @@ mod tests {
         let dir = d.path().join("backups");
         let cat = categories::create(&conn, "식비", "#112233").unwrap();
         add_exp(&mut conn, cat.id, "keep");
-        // a directory named like a backup: exists, but cannot be copied as a file
-        let name = "budgetbook-20200101-010101.db";
-        std::fs::create_dir_all(dir.join(name)).unwrap();
+        let bk = create_backup(&conn, &dir).unwrap();
+        let name = bk.file_name().unwrap().to_string_lossy().into_owned();
+        // a directory at the temp path makes fs::copy fail for real
+        std::fs::create_dir_all(d.path().join("test.db.restore-tmp")).unwrap();
         let mut slot = Some(conn);
-        assert!(restore(&mut slot, &db_path, &dir, name).is_err());
+        let e = restore(&mut slot, &db_path, &dir, &name).unwrap_err();
+        assert_eq!(e.code(), "io");
         assert_eq!(count(slot.as_ref().expect("reopened")), 1);
+    }
+
+    fn assert_rejected_and_intact(bad: &str, bytes: &[u8]) {
+        let (d, mut conn) = test_db();
+        let db_path = d.path().join("test.db");
+        let dir = d.path().join("backups");
+        let cat = categories::create(&conn, "식비", "#112233").unwrap();
+        add_exp(&mut conn, cat.id, "keep");
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join(bad), bytes).unwrap();
+        let mut slot = Some(conn);
+        let e = restore(&mut slot, &db_path, &dir, bad).unwrap_err();
+        assert_eq!(e.code(), "invalid_input");
+        assert_eq!(count(slot.as_ref().expect("slot kept")), 1);
         assert!(!d.path().join("test.db.restore-tmp").exists());
+    }
+
+    #[test]
+    fn restore_rejects_corrupt_backup() {
+        assert_rejected_and_intact("budgetbook-20200101-010101.db", &[7u8; 5000]);
+    }
+
+    #[test]
+    fn restore_rejects_empty_backup() {
+        assert_rejected_and_intact("budgetbook-20200101-010102.db", b"");
+    }
+
+    #[test]
+    fn restore_removes_leftover_wal_and_shm() {
+        let (d, mut conn) = test_db();
+        let db_path = d.path().join("test.db");
+        let dir = d.path().join("backups");
+        let cat = categories::create(&conn, "식비", "#112233").unwrap();
+        add_exp(&mut conn, cat.id, "before");
+        let bk = create_backup(&conn, &dir).unwrap();
+
+        let mut slot = Some(conn);
+        // leftovers appear after the connection is dropped inside restore: simulate by
+        // placing stale files when the slot is already empty
+        slot.take();
+        std::fs::write(d.path().join("test.db-wal"), b"stale").unwrap();
+        std::fs::write(d.path().join("test.db-shm"), b"stale").unwrap();
+        restore_swap(&db_path, &bk).unwrap();
+        assert!(!d.path().join("test.db-wal").exists());
+        assert!(!d.path().join("test.db-shm").exists());
+        let conn = db::open(&db_path).unwrap();
+        assert_eq!(count(&conn), 1);
+    }
+
+    #[test]
+    fn restore_from_error_screen_preserves_unopenable_files() {
+        let (d, mut conn) = test_db();
+        let dir = d.path().join("backups");
+        let cat = categories::create(&conn, "식비", "#112233").unwrap();
+        add_exp(&mut conn, cat.id, "good");
+        let bk = create_backup(&conn, &dir).unwrap();
+        let name = bk.file_name().unwrap().to_string_lossy().into_owned();
+        drop(conn);
+        let db_path = d.path().join("broken.db");
+        std::fs::write(&db_path, b"garbage-main").unwrap();
+        std::fs::write(d.path().join("broken.db-wal"), b"garbage-wal").unwrap();
+        let mut slot: Option<Connection> = None;
+        restore(&mut slot, &db_path, &dir, &name).unwrap();
+        assert_eq!(count(slot.as_ref().unwrap()), 1);
+        let copies: Vec<String> = names(&dir)
+            .into_iter()
+            .filter(|n| n.starts_with("unopenable-"))
+            .collect();
+        assert_eq!(copies.len(), 2, "{copies:?}");
+        for c in &copies {
+            let bytes = std::fs::read(dir.join(c)).unwrap();
+            if c.ends_with("-wal") {
+                assert_eq!(bytes, b"garbage-wal");
+            } else {
+                assert!(c.ends_with(".db"));
+                assert_eq!(bytes, b"garbage-main");
+            }
+        }
+        assert_eq!(list(&dir).unwrap().len(), 1, "unopenable copies not listed");
+        prune(&dir, 0).unwrap();
+        assert!(names(&dir).iter().any(|n| n.starts_with("unopenable-")));
     }
 }

@@ -8,7 +8,7 @@ use crate::error::{AppError, AppResult};
 pub mod test_util;
 
 const MIGRATION_0001: &str = include_str!("migrations/0001_init.sql");
-const LATEST_VERSION: i64 = 1;
+pub(crate) const LATEST_VERSION: i64 = 1;
 
 fn unavailable(e: impl std::fmt::Display) -> AppError {
     AppError::DbUnavailable(e.to_string())
